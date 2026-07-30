@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronDown, FolderKanban, Plus, Loader2, Trash2 } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
 import { CreateWorkspaceDialog } from '../workspace/CreateWorkspaceDialog';
+import { DeleteWorkspaceModal } from '../workspace/DeleteWorkspaceModal';
 import { api } from '../../services/api';
 
 export const WorkspaceSwitcher = () => {
@@ -12,7 +13,11 @@ export const WorkspaceSwitcher = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [hoveredWsId, setHoveredWsId] = useState(null);
-  const [deletingId, setDeletingId] = useState(null);
+  
+  // Custom delete confirmation modal state
+  const [targetDeleteWs, setTargetDeleteWs] = useState(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const { activeWorkspaceId, setActiveWorkspaceId } = useAppStore();
   const navigate = useNavigate();
@@ -44,19 +49,22 @@ export const WorkspaceSwitcher = () => {
     navigate(`/workspaces/${wsId}`);
   };
 
-  const handleDeleteWorkspace = async (e, ws) => {
+  const handlePromptDelete = (e, ws) => {
     e.stopPropagation();
-    if (!window.confirm(`Are you sure you want to delete workspace "${ws.name}"?\nThis will cascade delete all associated documents and data.`)) {
-      return;
-    }
+    setTargetDeleteWs(ws);
+    setIsDeleteModalOpen(true);
+  };
 
-    setDeletingId(ws.id);
+  const confirmDeleteWorkspace = async () => {
+    if (!targetDeleteWs) return;
+
+    setDeleteLoading(true);
     try {
-      await api.delete(`/workspaces/${ws.id}`);
-      const updatedList = workspaces.filter((w) => w.id !== ws.id);
+      await api.delete(`/workspaces/${targetDeleteWs.id}`);
+      const updatedList = workspaces.filter((w) => w.id !== targetDeleteWs.id);
       setWorkspaces(updatedList);
 
-      if (ws.id === activeWorkspaceId) {
+      if (targetDeleteWs.id === activeWorkspaceId) {
         if (updatedList.length > 0) {
           const nextWs = updatedList[0];
           setActiveWorkspaceId(nextWs.id);
@@ -66,11 +74,13 @@ export const WorkspaceSwitcher = () => {
           navigate('/dashboard');
         }
       }
+      setIsDeleteModalOpen(false);
+      setTargetDeleteWs(null);
     } catch (err) {
-      console.error(`Failed to delete workspace ${ws.name}:`, err);
-      alert(`Failed to delete workspace "${ws.name}". Please try again.`);
+      console.error(`Failed to delete workspace ${targetDeleteWs.name}:`, err);
+      alert(`Failed to delete workspace "${targetDeleteWs.name}". Please try again.`);
     } finally {
-      setDeletingId(null);
+      setDeleteLoading(false);
     }
   };
 
@@ -174,7 +184,6 @@ export const WorkspaceSwitcher = () => {
                 {workspaces.map((ws) => {
                   const isActive = ws.id === activeWorkspaceId;
                   const isHovered = hoveredWsId === ws.id;
-                  const isDeleting = deletingId === ws.id;
 
                   return (
                     <div
@@ -212,8 +221,7 @@ export const WorkspaceSwitcher = () => {
 
                       {isHovered && (
                         <button
-                          onClick={(e) => handleDeleteWorkspace(e, ws)}
-                          disabled={isDeleting}
+                          onClick={(e) => handlePromptDelete(e, ws)}
                           style={{
                             background: 'none',
                             border: 'none',
@@ -229,7 +237,7 @@ export const WorkspaceSwitcher = () => {
                           }}
                           title="Delete Workspace"
                         >
-                          {isDeleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={14} />}
+                          <Trash2 size={14} />
                         </button>
                       )}
                     </div>
@@ -273,6 +281,17 @@ export const WorkspaceSwitcher = () => {
         onClose={() => setIsDialogOpen(false)}
         onSubmit={handleCreateWorkspace}
         loading={createLoading}
+      />
+
+      <DeleteWorkspaceModal
+        isOpen={isDeleteModalOpen}
+        workspaceName={targetDeleteWs?.name || ''}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setTargetDeleteWs(null);
+        }}
+        onConfirm={confirmDeleteWorkspace}
+        loading={deleteLoading}
       />
     </div>
   );
