@@ -12,10 +12,12 @@ import { ChatPanel } from '../components/rag-chat/ChatPanel';
 import { JobPolling } from '../components/jobs/JobPolling';
 import { WorkspaceSummaryPlaceholder } from '../components/ai/WorkspaceSummaryPlaceholder';
 import { LearningPathPlaceholder } from '../components/ai/LearningPathPlaceholder';
+import { NotAvailablePlaceholder } from '../components/common/NotAvailablePlaceholder';
+import { CollaboratorList } from '../components/workspace/CollaboratorList';
 import { Button } from '../components/common/Button';
 import { useAppStore } from '../stores/appStore';
 import { api } from '../services/api';
-import { FileText, Sparkles, BookOpen, MessageSquare } from 'lucide-react';
+import { FileText, Sparkles, BookOpen, MessageSquare, Users } from 'lucide-react';
 
 export const WorkspaceDetail = () => {
   const { workspaceId } = useParams();
@@ -23,6 +25,7 @@ export const WorkspaceDetail = () => {
   const { activeWorkspaceId, setActiveWorkspaceId, sidebarOpen } = useAppStore();
 
   const [activeTab, setActiveTab] = useState('documents');
+  const [workspaceInfo, setWorkspaceInfo] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [hasNoWorkspaces, setHasNoWorkspaces] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -36,103 +39,78 @@ export const WorkspaceDetail = () => {
   const [notice, setNotice] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
 
+  const isOwner = workspaceInfo?.is_owner ?? true;
+
   const checkWorkspaceExists = async () => {
     try {
-      const res = await api.get('/workspaces/titles');
-      const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-      if (list.length === 0) {
-        setHasNoWorkspaces(true);
-      } else {
-        setHasNoWorkspaces(false);
-        const found = list.find((w) => w.id === workspaceId);
-        if (found) {
-          setActiveWorkspaceId(found.id);
-        } else {
-          // Redirect to first workspace if current URL workspace ID is invalid
-          const targetId = list[0].id;
-          setActiveWorkspaceId(targetId);
-          navigate(`/workspaces/${targetId}`, { replace: true });
-        }
+      const res = await api.get(`/workspaces/${workspaceId}`);
+      if (res?.data?.data) {
+        setWorkspaceInfo(res.data.data);
+      }
+      setHasNoWorkspaces(false);
+      if (activeWorkspaceId !== workspaceId) {
+        setActiveWorkspaceId(workspaceId);
       }
     } catch (err) {
-      console.log('Error listing workspaces:', err);
-      setHasNoWorkspaces(true);
+      if (err.response?.status === 404 || err.response?.status === 403) {
+        try {
+          const listRes = await api.get('/workspaces');
+          const workspaces = listRes?.data?.data || [];
+          if (workspaces.length === 0) {
+            setHasNoWorkspaces(true);
+          } else {
+            setHasNoWorkspaces(false);
+            const firstWs = workspaces[0];
+            setActiveWorkspaceId(firstWs.id);
+            navigate(`/workspaces/${firstWs.id}`, { replace: true });
+          }
+        } catch (lErr) {
+          console.error('Failed to list workspaces fallback:', lErr);
+          setHasNoWorkspaces(true);
+        }
+      }
     }
   };
 
   const fetchDocuments = async () => {
-    if (!workspaceId) return;
     try {
       const res = await api.get(`/workspaces/${workspaceId}/documents`);
-      const docs = Array.isArray(res) ? res : res?.data;
-      if (Array.isArray(docs)) setDocuments(docs);
+      const docs = res?.data?.data || res?.data || [];
+      setDocuments(docs);
     } catch (err) {
-      console.log('No documents loaded yet');
+      console.error('Failed to fetch documents:', err);
     }
   };
 
   const fetchSummary = async () => {
-    if (!workspaceId) return;
     try {
       const res = await api.get(`/workspaces/${workspaceId}/summary`);
-      const data = res?.data || res;
-      if (data && data.title) setSummary(data);
+      setSummary(res?.data?.data || res?.data || null);
     } catch (err) {
-      console.log('No cached summary found yet');
+      setSummary(null);
     }
   };
 
   const fetchLearningPath = async () => {
-    if (!workspaceId) return;
     try {
       const res = await api.get(`/workspaces/${workspaceId}/learning-path`);
-      const data = res?.data || res;
-      if (data && data.title) setLearningPath(data);
+      setLearningPath(res?.data?.data || res?.data || null);
     } catch (err) {
-      console.log('No cached learning path found yet');
+      setLearningPath(null);
     }
   };
 
   useEffect(() => {
-    checkWorkspaceExists();
     if (workspaceId) {
+      checkWorkspaceExists();
       fetchDocuments();
       fetchSummary();
       fetchLearningPath();
     }
   }, [workspaceId]);
 
-  // Automatic polling while documents are in uploaded or processing states
-  useEffect(() => {
-    const isProcessing = documents.some((d) => d.status === 'uploaded' || d.status === 'processing');
-    if (!isProcessing) return;
-
-    const timer = setInterval(() => {
-      fetchDocuments();
-    }, 2500);
-
-    return () => clearInterval(timer);
-  }, [documents, workspaceId]);
-
-  const handleCreateWorkspace = async (formData) => {
-    setCreateLoading(true);
-    try {
-      const res = await api.post('/workspaces', formData);
-      const newWs = res?.data || res;
-      if (newWs && newWs.id) {
-        setHasNoWorkspaces(false);
-        setActiveWorkspaceId(newWs.id);
-        navigate(`/workspaces/${newWs.id}`, { replace: true });
-      }
-      setIsCreateDialogOpen(false);
-    } catch (err) {
-      console.error('Failed to create workspace:', err);
-    } finally {
-      setCreateLoading(false);
-    }
-  };
-
   const handleQueueSummary = async () => {
+    if (!isOwner) return;
     setNotice(null);
     try {
       const res = await api.post(`/workspaces/${workspaceId}/summary`);
@@ -142,11 +120,12 @@ export const WorkspaceDetail = () => {
         setNotice('Queued background summary generation (202 Accepted). You may continue navigating.');
       }
     } catch (err) {
-      setErrorMsg('Failed to queue summary generation job.');
+      setErrorMsg(err.response?.data?.message || 'Failed to queue summary generation job.');
     }
   };
 
   const handleQueueLearningPath = async () => {
+    if (!isOwner) return;
     setNotice(null);
     try {
       const res = await api.post(`/workspaces/${workspaceId}/learning-path`);
@@ -156,7 +135,7 @@ export const WorkspaceDetail = () => {
         setNotice('Queued background learning path generation (202 Accepted).');
       }
     } catch (err) {
-      setErrorMsg('Failed to queue learning path generation job.');
+      setErrorMsg(err.response?.data?.message || 'Failed to queue learning path generation job.');
     }
   };
 
@@ -167,18 +146,15 @@ export const WorkspaceDetail = () => {
     fetchLearningPath();
   };
 
-  // Upload an array of files concurrently; track per-file status
   const handleUpload = async (files) => {
     if (!files || !files.length) return;
     setUploading(true);
     setNotice(null);
 
-    // Mark all files as 'uploading'
     const initialStatuses = {};
     files.forEach((f) => { initialStatuses[f.name] = 'uploading'; });
     setUploadStatuses(initialStatuses);
 
-    // Upload all files concurrently
     const results = await Promise.allSettled(
       files.map(async (file) => {
         const formData = new FormData();
@@ -190,7 +166,6 @@ export const WorkspaceDetail = () => {
       })
     );
 
-    // Process results
     const newStatuses = {};
     let successCount = 0;
     let failCount = 0;
@@ -204,7 +179,6 @@ export const WorkspaceDetail = () => {
       } else {
         newStatuses[fileName] = 'error';
         failCount++;
-        console.error(`Upload failed for ${fileName}:`, result.reason);
       }
     });
 
@@ -218,33 +192,42 @@ export const WorkspaceDetail = () => {
     } else {
       setNotice(`All ${failCount} uploads failed. Check file format and server state.`);
     }
-
-    // Clear statuses and auto-hide notice message banner after 5 seconds
-    setTimeout(() => {
-      setUploadStatuses({});
-      setNotice(null);
-    }, 5000);
   };
 
   const handleDeleteDocument = async (docId) => {
-    if (!window.confirm('Delete this document and remove file from MinIO storage?')) return;
     try {
-      await api.delete(`/documents/${docId}`);
-      setDocuments((prev) => prev.filter((d) => d.id !== docId));
+      await api.delete(`/workspaces/${workspaceId}/documents/${docId}`);
+      setDocuments((prev) => prev.filter((d) => d.id !== docId && d._id !== docId));
+      setNotice('Document deleted successfully.');
     } catch (err) {
-      setDocuments((prev) => prev.filter((d) => d.id !== docId));
+      setErrorMsg(err.response?.data?.message || 'Failed to delete document.');
     }
   };
 
-  const handleRetryDocument = async (doc) => {
+  const handleRetryDocument = async (docId) => {
     try {
-      await api.post(`/workspaces/${workspaceId}/documents/${doc.id}/retry`);
-      setDocuments((prev) =>
-        prev.map((d) => (d.id === doc.id ? { ...d, status: 'processing', processing_stage: 'parse' } : d))
-      );
+      setNotice(`Retrying document processing for ${docId}...`);
+      await api.post(`/workspaces/${workspaceId}/documents/${docId}/retry`);
+      fetchDocuments();
     } catch (err) {
-      console.error(`Failed to retry document ${doc.filename}:`, err);
-      alert(`Failed to restart processing for document "${doc.filename}". Please try again.`);
+      setErrorMsg(err.response?.data?.message || 'Failed to retry document processing.');
+    }
+  };
+
+  const handleCreateWorkspace = async (name) => {
+    setCreateLoading(true);
+    try {
+      const res = await api.post('/workspaces', { name });
+      const newWs = res?.data?.data || res?.data;
+      if (newWs?.id) {
+        setIsCreateDialogOpen(false);
+        setActiveWorkspaceId(newWs.id);
+        navigate(`/workspaces/${newWs.id}`);
+      }
+    } catch (err) {
+      console.error('Failed to create workspace:', err);
+    } finally {
+      setCreateLoading(false);
     }
   };
 
@@ -253,6 +236,7 @@ export const WorkspaceDetail = () => {
     { id: 'summary', label: 'AI Summary', icon: Sparkles },
     { id: 'learning', label: 'Learning Path', icon: BookOpen },
     { id: 'rag', label: 'RAG Assistant', icon: MessageSquare },
+    { id: 'collaborators', label: 'Collaborators', icon: Users },
   ];
 
   if (hasNoWorkspaces) {
@@ -277,8 +261,6 @@ export const WorkspaceDetail = () => {
   return (
     <WorkspaceLayout>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-
-        {/* Tab Navigation (Position Fixed Header) */}
         <div
           style={{
             position: 'fixed',
@@ -323,13 +305,9 @@ export const WorkspaceDetail = () => {
             );
           })}
         </div>
-
-        {/* Spacer for fixed Tab Navigation bar */}
         <div style={{ height: '52px' }} />
-
         {notice && <Alert type="info" message={notice} />}
-        {errorMsg && <Alert type="info" message={errorMsg} />}
-
+        {errorMsg && <Alert type="error" message={errorMsg} />}
         {activeJobId && (
           <JobPolling
             workspaceId={workspaceId}
@@ -337,8 +315,6 @@ export const WorkspaceDetail = () => {
             onComplete={handleJobComplete}
           />
         )}
-
-        {/* Tab Content */}
         {activeTab === 'documents' && (
           documents.length === 0 ? (
             <div>
@@ -353,7 +329,6 @@ export const WorkspaceDetail = () => {
                 alignItems: 'start',
               }}
             >
-              {/* Left Column: Document List with Scrollable Overflow */}
               <div
                 style={{
                   maxHeight: 'calc(100vh - 150px)',
@@ -363,8 +338,6 @@ export const WorkspaceDetail = () => {
               >
                 <DocumentList documents={documents} onDelete={handleDeleteDocument} onRetry={handleRetryDocument} />
               </div>
-
-              {/* Right Column: Sticky Upload Zone */}
               <div
                 style={{
                   position: 'sticky',
@@ -376,15 +349,14 @@ export const WorkspaceDetail = () => {
             </div>
           )
         )}
-
         {activeTab === 'summary' && (
           <div>
             {summary ? (
               <SummaryCard
                 summary={summary}
-                onRegenerate={handleQueueSummary}
+                onRegenerate={isOwner ? handleQueueSummary : undefined}
               />
-            ) : (
+            ) : isOwner ? (
               <div style={{ textAlign: 'center', padding: '2rem 0' }}>
                 <WorkspaceSummaryPlaceholder />
                 <div style={{ marginTop: '1rem' }}>
@@ -394,27 +366,37 @@ export const WorkspaceDetail = () => {
                   </Button>
                 </div>
               </div>
+            ) : (
+              <NotAvailablePlaceholder
+                title="Not yet Available"
+                description="The workspace owner has not generated an Executive Summary for this workspace yet."
+              />
             )}
           </div>
         )}
-
         {activeTab === 'learning' && (
           <div>
             {learningPath ? (
               <LearningPathView
                 learningPath={learningPath}
                 workspaceId={workspaceId}
-                onRegenerate={handleQueueLearningPath}
+                onRegenerate={isOwner ? handleQueueLearningPath : undefined}
               />
-            ) : (
+            ) : isOwner ? (
               <LearningPathPlaceholder onGenerate={handleQueueLearningPath} />
+            ) : (
+              <NotAvailablePlaceholder
+                title="Not yet Available"
+                description="The workspace owner has not generated a Learning Path for this workspace yet."
+              />
             )}
           </div>
         )}
-
         {activeTab === 'rag' && <ChatPanel workspaceId={workspaceId} />}
+        {activeTab === 'collaborators' && (
+          <CollaboratorList workspaceId={workspaceId} isOwner={isOwner} />
+        )}
       </div>
-
       <CreateWorkspaceDialog
         isOpen={isCreateDialogOpen}
         onClose={() => setIsCreateDialogOpen(false)}

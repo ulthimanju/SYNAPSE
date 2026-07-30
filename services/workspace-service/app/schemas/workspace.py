@@ -13,6 +13,20 @@ class WorkspaceUpdate(BaseModel):
     visibility: Optional[str] = Field(default=None)
     is_archived: Optional[bool] = Field(default=None)
 
+class CollaboratorInvite(BaseModel):
+    """Schema for inviting a collaborator to a workspace."""
+    email: str = Field(..., description="Email of the user to invite")
+    role: str = Field(default="collaborator", description="Role: 'collaborator'")
+
+class CollaboratorRead(BaseModel):
+    """Schema for reading collaborator info."""
+    id: str
+    workspace_id: str
+    user_id: str
+    email: Optional[str] = None
+    role: str
+    joined_at: datetime
+
 class WorkspaceRead(BaseModel):
     """Schema for reading workspace payload."""
     id: str
@@ -20,6 +34,9 @@ class WorkspaceRead(BaseModel):
     owner_id: str
     visibility: str
     is_archived: bool
+    role: str = "owner"
+    is_owner: bool = True
+    can_edit: bool = True
     created_at: datetime
     updated_at: datetime
 

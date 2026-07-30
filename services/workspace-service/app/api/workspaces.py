@@ -7,7 +7,7 @@ from shared.auth import get_current_user, AuthenticatedUser
 from shared.exceptions import NotFoundException, ForbiddenException
 from ..services.workspace_service import WorkspaceService
 from ..services.job_worker import AIJobWorker
-from ..schemas.workspace import WorkspaceCreate, WorkspaceUpdate, WorkspaceRead, WorkspaceTitleRead
+from ..schemas.workspace import WorkspaceCreate, WorkspaceUpdate, WorkspaceRead, WorkspaceTitleRead, CollaboratorInvite
 from ..models.workspace_summary import WorkspaceSummary
 from ..models.learning_path import LearningPath
 from ..models.learning_unit_content import LearningUnitContent
@@ -204,12 +204,16 @@ async def clear_workspace_chat_history(
 async def queue_summary_generation(
     workspace_id: str = Path(..., description="Workspace ID"),
     current_user: AuthenticatedUser = Depends(get_current_user),
+    service: WorkspaceService = Depends(get_workspace_service),
 ) -> APIResponse[dict]:
     """Creates a background AI summary generation job and returns 202 Accepted with job_id."""
+    workspace = await service.workspace_repo.get_by_id(workspace_id)
     membership_repo = MembershipRepository()
     membership = await membership_repo.get_membership(workspace_id, current_user.user_id)
-    if not membership:
-        raise ForbiddenException("You are not authorized to generate summaries for this workspace")
+    
+    is_owner = (workspace and workspace.owner_id == current_user.user_id) or (membership and membership.role == "owner")
+    if not is_owner:
+        raise ForbiddenException("Only the workspace owner can generate or modify executive summaries")
 
     job = GenerationJob(workspace_id=workspace_id, job_type="SUMMARY", status="QUEUED", progress=0)
     try:
@@ -279,12 +283,16 @@ async def get_internal_workspace_summary(
 async def queue_learning_path_generation(
     workspace_id: str = Path(..., description="Workspace ID"),
     current_user: AuthenticatedUser = Depends(get_current_user),
+    service: WorkspaceService = Depends(get_workspace_service),
 ) -> APIResponse[dict]:
     """Creates a background AI learning path generation job and returns 202 Accepted with job_id."""
+    workspace = await service.workspace_repo.get_by_id(workspace_id)
     membership_repo = MembershipRepository()
     membership = await membership_repo.get_membership(workspace_id, current_user.user_id)
-    if not membership:
-        raise ForbiddenException("You are not authorized to generate learning paths for this workspace")
+    
+    is_owner = (workspace and workspace.owner_id == current_user.user_id) or (membership and membership.role == "owner")
+    if not is_owner:
+        raise ForbiddenException("Only the workspace owner can generate or modify learning paths")
 
     job = GenerationJob(workspace_id=workspace_id, job_type="LEARNING_PATH", status="QUEUED", progress=0)
     try:
@@ -615,4 +623,43 @@ async def get_generation_job_status(
         "completed_at": job.completed_at.isoformat() if job.completed_at else None,
         "steps": getattr(job, "steps", []),
     })
+
+# --- Collaborators Management Endpoints ---
+
+@router.post("/{workspace_id}/collaborators", response_model=APIResponse[dict], status_code=status.HTTP_201_CREATED)
+async def invite_collaborator(
+    payload: CollaboratorInvite,
+    workspace_id: str = Path(..., description="Workspace ID"),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    service: WorkspaceService = Depends(get_workspace_service),
+) -> APIResponse[dict]:
+    """Invites a collaborator to the workspace by email (Owner only)."""
+    result = await service.invite_collaborator(
+        owner_id=current_user.user_id,
+        workspace_id=workspace_id,
+        email=payload.email,
+        role=payload.role
+    )
+    return APIResponse(message="Collaborator invited successfully.", data=result)
+
+@router.get("/{workspace_id}/collaborators", response_model=APIResponse[List[dict]])
+async def list_collaborators(
+    workspace_id: str = Path(..., description="Workspace ID"),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    service: WorkspaceService = Depends(get_workspace_service),
+) -> APIResponse[List[dict]]:
+    """Lists all collaborators and members of a workspace."""
+    result = await service.list_collaborators(user_id=current_user.user_id, workspace_id=workspace_id)
+    return APIResponse(message="Workspace collaborators retrieved.", data=result)
+
+@router.delete("/{workspace_id}/collaborators/{collaborator_id}", response_model=APIResponse[dict])
+async def remove_collaborator(
+    workspace_id: str = Path(..., description="Workspace ID"),
+    collaborator_id: str = Path(..., description="Collaborator User ID or Email"),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    service: WorkspaceService = Depends(get_workspace_service),
+) -> APIResponse[dict]:
+    """Removes a collaborator from the workspace (Owner only)."""
+    await service.remove_collaborator(owner_id=current_user.user_id, workspace_id=workspace_id, target_id_or_email=collaborator_id)
+    return APIResponse(message="Collaborator removed successfully.", data={"removed": True})
 

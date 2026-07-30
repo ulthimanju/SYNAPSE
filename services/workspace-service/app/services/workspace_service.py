@@ -40,33 +40,50 @@ class WorkspaceService:
             updated_at=workspace.updated_at,
         )
 
-    async def list_user_workspaces(self, user_id: str) -> List[WorkspaceRead]:
-        """Lists all workspaces accessible by the user via membership."""
-        memberships = await self.membership_repo.list_by_user(user_id)
+    async def list_user_workspaces(self, user_id: str, email: str | None = None) -> List[WorkspaceRead]:
+        """Lists all workspaces accessible by the user via membership or ownership."""
+        memberships = await self.membership_repo.list_by_user(user_id, email)
         ws_ids = [m.workspace_id for m in memberships]
         workspaces = await self.workspace_repo.list_by_ids(ws_ids)
 
-        return [
-          WorkspaceRead(
-              id=str(ws.id),
-              name=ws.name,
-              owner_id=ws.owner_id,
-              visibility=ws.visibility,
-              is_archived=ws.is_archived,
-              created_at=ws.created_at,
-              updated_at=ws.updated_at,
-          ) for ws in workspaces
-        ]
+        mem_map = {m.workspace_id: m for m in memberships}
 
-    async def get_workspace_detail(self, user_id: str, workspace_id: str) -> WorkspaceRead:
+        results = []
+        for ws in workspaces:
+            mem = mem_map.get(str(ws.id))
+            is_owner = (ws.owner_id == user_id) or (mem and mem.role == "owner")
+            role = "owner" if is_owner else (mem.role if mem else "collaborator")
+            results.append(
+                WorkspaceRead(
+                    id=str(ws.id),
+                    name=ws.name,
+                    owner_id=ws.owner_id,
+                    visibility=ws.visibility,
+                    is_archived=ws.is_archived,
+                    role=role,
+                    is_owner=is_owner,
+                    can_edit=is_owner,
+                    created_at=ws.created_at,
+                    updated_at=ws.updated_at,
+                )
+            )
+        return results
+
+    async def get_workspace_detail(self, user_id: str, workspace_id: str, email: str | None = None) -> WorkspaceRead:
         """Fetches workspace details after verifying user membership."""
-        membership = await self.membership_repo.get_membership(workspace_id, user_id)
-        if not membership:
-            raise ForbiddenException("You are not a member of this workspace")
-
         workspace = await self.workspace_repo.get_by_id(workspace_id)
         if not workspace:
             raise NotFoundException("Workspace not found")
+
+        membership = await self.membership_repo.get_membership(workspace_id, user_id)
+        if not membership and email:
+            membership = await self.membership_repo.get_membership(workspace_id, email)
+
+        is_owner = workspace.owner_id == user_id or (membership and membership.role == "owner")
+        if not is_owner and not membership:
+            raise ForbiddenException("You are not a member of this workspace")
+
+        role = "owner" if is_owner else (membership.role if membership else "collaborator")
 
         return WorkspaceRead(
             id=str(workspace.id),
@@ -74,19 +91,21 @@ class WorkspaceService:
             owner_id=workspace.owner_id,
             visibility=workspace.visibility,
             is_archived=workspace.is_archived,
+            role=role,
+            is_owner=is_owner,
+            can_edit=is_owner,
             created_at=workspace.created_at,
             updated_at=workspace.updated_at,
         )
 
     async def update_workspace(self, user_id: str, workspace_id: str, payload: WorkspaceUpdate) -> WorkspaceRead:
-        """Updates workspace fields after verifying user membership."""
-        membership = await self.membership_repo.get_membership(workspace_id, user_id)
-        if not membership:
-            raise ForbiddenException("You are not authorized to modify this workspace")
-
+        """Updates workspace fields after verifying owner permission."""
         workspace = await self.workspace_repo.get_by_id(workspace_id)
         if not workspace:
             raise NotFoundException("Workspace not found")
+
+        if workspace.owner_id != user_id:
+            raise ForbiddenException("Only the workspace owner can modify workspace settings")
 
         updated_ws = await self.workspace_repo.update(
             workspace,
@@ -101,6 +120,9 @@ class WorkspaceService:
             owner_id=updated_ws.owner_id,
             visibility=updated_ws.visibility,
             is_archived=updated_ws.is_archived,
+            role="owner",
+            is_owner=True,
+            can_edit=True,
             created_at=updated_ws.created_at,
             updated_at=updated_ws.updated_at,
         )
@@ -118,6 +140,68 @@ class WorkspaceService:
         await self.cascade_delete_workspace_data(workspace_id)
         await self.workspace_repo.delete(workspace)
         return True
+
+    async def invite_collaborator(self, owner_id: str, workspace_id: str, email: str, role: str = "collaborator"):
+        """Invites a collaborator to the workspace. Restricted to workspace owner."""
+        workspace = await self.workspace_repo.get_by_id(workspace_id)
+        if not workspace:
+            raise NotFoundException("Workspace not found")
+
+        if workspace.owner_id != owner_id:
+            raise ForbiddenException("Only the workspace owner can invite collaborators")
+
+        cleaned_email = email.strip().lower()
+        membership = await self.membership_repo.create(
+            workspace_id=workspace_id,
+            user_id=cleaned_email,
+            email=cleaned_email,
+            role=role
+        )
+        return {
+            "id": str(membership.id),
+            "workspace_id": workspace_id,
+            "user_id": membership.user_id,
+            "email": membership.email,
+            "role": membership.role,
+            "joined_at": membership.joined_at,
+        }
+
+    async def list_collaborators(self, user_id: str, workspace_id: str):
+        """Lists all collaborators and members of a workspace."""
+        workspace = await self.workspace_repo.get_by_id(workspace_id)
+        if not workspace:
+            raise NotFoundException("Workspace not found")
+
+        membership = await self.membership_repo.get_membership(workspace_id, user_id)
+        if workspace.owner_id != user_id and not membership:
+            raise ForbiddenException("You are not a member of this workspace")
+
+        members = await self.membership_repo.list_by_workspace(workspace_id)
+        return [
+            {
+                "id": str(m.id),
+                "workspace_id": m.workspace_id,
+                "user_id": m.user_id,
+                "email": m.email or m.user_id,
+                "role": m.role,
+                "joined_at": m.joined_at,
+            }
+            for m in members
+        ]
+
+    async def remove_collaborator(self, owner_id: str, workspace_id: str, target_id_or_email: str) -> bool:
+        """Removes a collaborator from the workspace. Restricted to workspace owner."""
+        workspace = await self.workspace_repo.get_by_id(workspace_id)
+        if not workspace:
+            raise NotFoundException("Workspace not found")
+
+        if workspace.owner_id != owner_id:
+            raise ForbiddenException("Only the workspace owner can remove collaborators")
+
+        if target_id_or_email == workspace.owner_id:
+            raise BadRequestException("Cannot remove the workspace owner from collaborators")
+
+        return await self.membership_repo.delete_member(workspace_id, target_id_or_email)
 
     async def cascade_delete_workspace_data(self, workspace_id: str) -> None:
         """Helper performing cascade deletion across all related MongoDB collections for a workspace."""
