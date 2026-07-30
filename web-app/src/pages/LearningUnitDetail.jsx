@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import { Alert } from '../components/feedback/Alert';
@@ -12,7 +12,6 @@ import {
   RefreshCw,
   CheckCircle2,
   XCircle,
-  ChevronRight,
   ChevronLeft,
   RotateCcw,
   Sparkles,
@@ -110,54 +109,39 @@ export const LearningUnitDetail = () => {
           padding: '0 1.5rem',
           display: 'flex',
           alignItems: 'center',
-          justify: 'space-between',
+          gap: '1.25rem',
           boxShadow: 'var(--shadow-sm)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          {/* Back Button */}
-          <button
-            onClick={() => navigate(`/workspaces/${workspaceId}`)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.4rem 0.75rem',
-              borderRadius: 'var(--radius-sm)',
-              border: '1px solid var(--border-color)',
-              backgroundColor: 'var(--bg-secondary)',
-              color: 'var(--text-primary)',
-              fontSize: '0.8125rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-            }}
-            title="Back to Workspace Learning Path"
-          >
-            <ArrowLeft size={16} />
-            <span>Back to Workspace</span>
-          </button>
+        {/* Back Button */}
+        <button
+          onClick={() => navigate(`/workspaces/${workspaceId}`)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.4rem 0.75rem',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--border-color)',
+            backgroundColor: 'var(--bg-secondary)',
+            color: 'var(--text-primary)',
+            fontSize: '0.8125rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+          }}
+          title="Back to Workspace Learning Path"
+        >
+          <ArrowLeft size={16} />
+          <span>Back</span>
+        </button>
 
-          {/* Breadcrumbs */}
-          <nav style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-            <Link to="/dashboard" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>Workspaces</Link>
-            <ChevronRight size={14} />
-            <Link to={`/workspaces/${workspaceId}`} style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>
-              {workspaceId.slice(0, 12)}...
-            </Link>
-            <ChevronRight size={14} />
-            <span style={{ color: 'var(--text-muted)' }}>Learning Path</span>
-            <ChevronRight size={14} />
-            <span style={{ color: 'var(--accent-amber-hover)', fontWeight: 600 }}>{unitTitle}</span>
-          </nav>
-        </div>
+        <div style={{ height: '20px', width: '1px', backgroundColor: 'var(--border-color)' }} />
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Button variant="outline" size="sm" onClick={() => navigate(`/workspaces/${workspaceId}`)}>
-            <BookOpen size={14} />
-            <span>Learning Path</span>
-          </Button>
-        </div>
+        {/* Unit Title */}
+        <h2 className="font-serif" style={{ fontSize: '1.125rem', color: 'var(--text-primary)', margin: 0, fontWeight: 600 }}>
+          {unitTitle}
+        </h2>
       </header>
 
       {/* Main Page Container */}
