@@ -408,15 +408,10 @@ async def get_or_generate_unit_content(
     # 3. Call AI Service to generate concept-specific Summary + Flashcards + Quiz
     from shared.config.settings import settings
     ai_service_url = settings.ai_service_url
-    unit_content = {
-        "unit_summary": f"# {unit_title}\n\nComprehensive exploration of core concepts.",
-        "flashcards": [],
-        "quiz": {"title": f"{unit_title} Quiz", "questions": []}
-    }
-    is_successfully_generated = False
+    unit_content = None
 
     try:
-        async with httpx.AsyncClient(timeout=45.0) as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             res = await client.post(
                 f"{ai_service_url}/learning-unit-content",
                 json={
@@ -429,26 +424,27 @@ async def get_or_generate_unit_content(
             )
             if res.status_code == 200:
                 payload = res.json().get("data", {})
-                if payload:
+                if payload and payload.get("unit_summary"):
                     unit_content = payload
-                    is_successfully_generated = True
     except Exception as exc:
-        pass
+        logger.error(f"Error calling ai-service for unit content: {exc}")
 
-    # 4. Store Learning Unit into MongoDB only if generated successfully
-    if is_successfully_generated:
-        saved = LearningUnitContent(
-            workspace_id=workspace_id,
-            unit_id=unit_id,
-            unit_title=unit_title,
-            unit_summary=unit_content.get("unit_summary", ""),
-            flashcards=unit_content.get("flashcards", []),
-            quiz=unit_content.get("quiz", {}),
-        )
-        try:
-            await saved.insert()
-        except Exception:
-            pass
+    if not unit_content:
+        raise ServiceUnavailableException("AI Service is currently generating content or unavailable. Please try again.")
+
+    # 4. Store Learning Unit into MongoDB
+    saved = LearningUnitContent(
+        workspace_id=workspace_id,
+        unit_id=unit_id,
+        unit_title=unit_title,
+        unit_summary=unit_content.get("unit_summary", ""),
+        flashcards=unit_content.get("flashcards", []),
+        quiz=unit_content.get("quiz", {}),
+    )
+    try:
+        await saved.insert()
+    except Exception:
+        pass
 
     # 5. Return Content
     return APIResponse(
