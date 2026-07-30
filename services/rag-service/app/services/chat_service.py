@@ -106,14 +106,27 @@ class ChatService:
             api_key = os.getenv("GEMINI_API_KEY", "")
             if api_key:
                 genai.configure(api_key=api_key)
-            model_name = os.getenv("LLM_PRIMARY_MODEL", "gemini-flash-latest")
-            model = genai.GenerativeModel(
-                model_name=model_name,
-                system_instruction=RAG_CHAT_SYSTEM_PROMPT
-            )
-            res = model.generate_content(prompt)
-            if res and res.text:
-                return res.text.strip()
+            primary_model = os.getenv("LLM_PRIMARY_MODEL", "gemini-3.6-flash")
+            models_to_try = [primary_model]
+            if primary_model != "gemini-2.5-flash":
+                models_to_try.append("gemini-2.5-flash")
+
+            for m_name in models_to_try:
+                try:
+                    model = genai.GenerativeModel(
+                        model_name=m_name,
+                        system_instruction=RAG_CHAT_SYSTEM_PROMPT
+                    )
+                    res = model.generate_content(prompt)
+                    if res and res.text:
+                        return res.text.strip()
+                except Exception as exc:
+                    err_str = str(exc).lower()
+                    if ("429" in err_str or "quota" in err_str or "rate limit" in err_str) and m_name != "gemini-2.5-flash":
+                        logger.warning(f"RAG model '{m_name}' hit rate limit ({exc}). Switching fallback to 'gemini-2.5-flash'...")
+                        continue
+                    else:
+                        raise exc
         except Exception as exc:
             logger.warning(f"Gemini RAG answer generation notice: {exc}. Returning contextual response.")
 
