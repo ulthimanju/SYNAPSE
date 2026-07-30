@@ -8,19 +8,14 @@ import { EmptyState } from '../components/feedback/EmptyState';
 import { CreateWorkspaceDialog } from '../components/workspace/CreateWorkspaceDialog';
 import { SummaryCard } from '../components/summary/SummaryCard';
 import { LearningPathView } from '../components/learning-path/LearningPathView';
-import { FlashcardDeck } from '../components/flashcards/FlashcardDeck';
-import { QuizView } from '../components/quizzes/QuizView';
 import { ChatPanel } from '../components/rag-chat/ChatPanel';
-import { RetrievalPanel } from '../components/retrieval/RetrievalPanel';
 import { JobPolling } from '../components/jobs/JobPolling';
 import { WorkspaceSummaryPlaceholder } from '../components/ai/WorkspaceSummaryPlaceholder';
 import { LearningPathPlaceholder } from '../components/ai/LearningPathPlaceholder';
-import { FlashcardsPlaceholder } from '../components/ai/FlashcardsPlaceholder';
-import { QuizPlaceholder } from '../components/ai/QuizPlaceholder';
 import { Button } from '../components/common/Button';
 import { useAppStore } from '../stores/appStore';
 import { api } from '../services/api';
-import { FileText, Sparkles, BookOpen, Layers, HelpCircle, MessageSquare, Database } from 'lucide-react';
+import { FileText, Sparkles, BookOpen, MessageSquare } from 'lucide-react';
 
 export const WorkspaceDetail = () => {
   const { workspaceId } = useParams();
@@ -37,8 +32,6 @@ export const WorkspaceDetail = () => {
   const [uploadStatuses, setUploadStatuses] = useState({}); // { [filename]: 'uploading'|'done'|'error' }
   const [summary, setSummary] = useState(null);
   const [learningPath, setLearningPath] = useState(null);
-  const [flashcards, setFlashcards] = useState(null);
-  const [quiz, setQuiz] = useState(null);
   const [activeJobId, setActiveJobId] = useState(null);
   const [notice, setNotice] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
@@ -100,36 +93,12 @@ export const WorkspaceDetail = () => {
     }
   };
 
-  const fetchFlashcards = async () => {
-    if (!workspaceId) return;
-    try {
-      const res = await api.get(`/workspaces/${workspaceId}/flashcards`);
-      const data = res?.data || res;
-      if (Array.isArray(data)) setFlashcards(data);
-    } catch (err) {
-      console.log('No cached flashcards found yet');
-    }
-  };
-
-  const fetchQuiz = async () => {
-    if (!workspaceId) return;
-    try {
-      const res = await api.get(`/workspaces/${workspaceId}/quizzes`);
-      const data = res?.data || res;
-      if (data && data.title) setQuiz(data);
-    } catch (err) {
-      console.log('No cached quiz found yet');
-    }
-  };
-
   useEffect(() => {
     checkWorkspaceExists();
     if (workspaceId) {
       fetchDocuments();
       fetchSummary();
       fetchLearningPath();
-      fetchFlashcards();
-      fetchQuiz();
     }
   }, [workspaceId]);
 
@@ -191,41 +160,11 @@ export const WorkspaceDetail = () => {
     }
   };
 
-  const handleQueueFlashcards = async () => {
-    setNotice(null);
-    try {
-      const res = await api.post(`/workspaces/${workspaceId}/flashcards`);
-      const data = res?.data || res;
-      if (data?.job_id) {
-        setActiveJobId(data.job_id);
-        setNotice('Queued background flashcards generation (202 Accepted).');
-      }
-    } catch (err) {
-      setErrorMsg('Failed to queue flashcards generation job.');
-    }
-  };
-
-  const handleQueueQuiz = async () => {
-    setNotice(null);
-    try {
-      const res = await api.post(`/workspaces/${workspaceId}/quizzes`);
-      const data = res?.data || res;
-      if (data?.job_id) {
-        setActiveJobId(data.job_id);
-        setNotice('Queued background quiz generation (202 Accepted).');
-      }
-    } catch (err) {
-      setErrorMsg('Failed to queue quiz generation job.');
-    }
-  };
-
   const handleJobComplete = () => {
     setActiveJobId(null);
     setNotice('Background AI Generation Job completed successfully!');
     fetchSummary();
     fetchLearningPath();
-    fetchFlashcards();
-    fetchQuiz();
   };
 
   // Upload an array of files concurrently; track per-file status
@@ -310,10 +249,7 @@ export const WorkspaceDetail = () => {
     { id: 'documents', label: 'Documents & Ingestion', icon: FileText },
     { id: 'summary', label: 'AI Summary', icon: Sparkles },
     { id: 'learning', label: 'Learning Path', icon: BookOpen },
-    { id: 'flashcards', label: 'Flashcards', icon: Layers },
-    { id: 'quiz', label: 'Quiz', icon: HelpCircle },
     { id: 'rag', label: 'RAG Assistant', icon: MessageSquare },
-    { id: 'explorer', label: 'Vector Explorer', icon: Database },
   ];
 
   if (hasNoWorkspaces) {
@@ -436,50 +372,7 @@ export const WorkspaceDetail = () => {
           </div>
         )}
 
-        {activeTab === 'flashcards' && (
-          <div>
-            {flashcards ? (
-              <FlashcardDeck
-                cards={flashcards}
-                onRegenerate={handleQueueFlashcards}
-              />
-            ) : (
-              <div style={{ textAlign: 'center', padding: '2rem 0' }}>
-                <FlashcardsPlaceholder />
-                <div style={{ marginTop: '1rem' }}>
-                  <Button onClick={handleQueueFlashcards}>
-                    <Layers size={16} />
-                    <span>Extract Concept Flashcards</span>
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'quiz' && (
-          <div>
-            {quiz ? (
-              <QuizView
-                quiz={quiz}
-                onRegenerate={handleQueueQuiz}
-              />
-            ) : (
-              <div style={{ textAlign: 'center', padding: '2rem 0' }}>
-                <QuizPlaceholder />
-                <div style={{ marginTop: '1rem' }}>
-                  <Button onClick={handleQueueQuiz}>
-                    <HelpCircle size={16} />
-                    <span>Generate Evaluation Quiz</span>
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
         {activeTab === 'rag' && <ChatPanel workspaceId={workspaceId} />}
-        {activeTab === 'explorer' && <RetrievalPanel workspaceId={workspaceId} />}
       </div>
 
       <CreateWorkspaceDialog
