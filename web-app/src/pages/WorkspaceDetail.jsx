@@ -319,9 +319,34 @@ export const WorkspaceDetail = () => {
 
         {/* Tab Content */}
         {activeTab === 'documents' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <UploadZone onUpload={handleUpload} loading={uploading} uploadStatuses={uploadStatuses} />
-            <DocumentList documents={documents} onDelete={handleDeleteDocument} onRetry={handleRetryDocument} />
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+              gap: '1.5rem',
+              alignItems: 'start',
+            }}
+          >
+            {/* Left Column: Document List with Scrollable Overflow */}
+            <div
+              style={{
+                maxHeight: 'calc(100vh - 150px)',
+                overflowY: 'auto',
+                paddingRight: '0.5rem',
+              }}
+            >
+              <DocumentList documents={documents} onDelete={handleDeleteDocument} onRetry={handleRetryDocument} />
+            </div>
+
+            {/* Right Column: Sticky Upload Zone */}
+            <div
+              style={{
+                position: 'sticky',
+                top: '1rem',
+              }}
+            >
+              <UploadZone onUpload={handleUpload} loading={uploading} uploadStatuses={uploadStatuses} />
+            </div>
           </div>
         )}
 
