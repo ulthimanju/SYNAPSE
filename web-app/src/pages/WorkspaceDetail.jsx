@@ -219,8 +219,11 @@ export const WorkspaceDetail = () => {
       setNotice(`All ${failCount} uploads failed. Check file format and server state.`);
     }
 
-    // Clear statuses after 5 seconds so the zone resets cleanly
-    setTimeout(() => setUploadStatuses({}), 5000);
+    // Clear statuses and auto-hide notice message banner after 5 seconds
+    setTimeout(() => {
+      setUploadStatuses({});
+      setNotice(null);
+    }, 5000);
   };
 
   const handleDeleteDocument = async (docId) => {
