@@ -331,6 +331,9 @@ async def get_workspace_learning_path(
         "id": str(lp.id),
         "workspace_id": lp.workspace_id,
         "title": lp.title,
+        "description": getattr(lp, "description", "Comprehensive curriculum roadmap."),
+        "estimated_total_time": getattr(lp, "estimated_total_time", "10 hours"),
+        "difficulty": getattr(lp, "difficulty", "Intermediate"),
         "units": lp.units,
         "version": lp.version,
     })
@@ -346,6 +349,9 @@ async def get_internal_workspace_learning_path(
 
     return APIResponse(message="Internal workspace learning path retrieved.", data={
         "title": lp.title,
+        "description": getattr(lp, "description", "Comprehensive curriculum roadmap."),
+        "estimated_total_time": getattr(lp, "estimated_total_time", "10 hours"),
+        "difficulty": getattr(lp, "difficulty", "Intermediate"),
         "units": lp.units,
     })
 

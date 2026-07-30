@@ -4,7 +4,7 @@ import { Button } from '../common/Button';
 import { DifficultyBadge } from './DifficultyBadge';
 import { PrerequisiteList } from './PrerequisiteList';
 import { ObjectiveList } from './ObjectiveList';
-import { Clock, BookOpen, Sparkles, X, Check, ArrowRight, RefreshCw, HelpCircle } from 'lucide-react';
+import { Clock, BookOpen, Sparkles, X, Check, ArrowRight, RefreshCw, HelpCircle, Code2, Award, Briefcase } from 'lucide-react';
 import { api } from '../../services/api';
 
 export const LearningUnitCard = ({ unit, index, workspaceId }) => {
@@ -30,6 +30,11 @@ export const LearningUnitCard = ({ unit, index, workspaceId }) => {
       setLoading(false);
     }
   };
+
+  const skillsGained = unit.skills_gained || [];
+  const realWorldExamples = unit.real_world_examples || [];
+  const practicalExercises = unit.practical_exercises || [];
+  const keywords = unit.keywords || [];
 
   return (
     <>
@@ -69,17 +74,47 @@ export const LearningUnitCard = ({ unit, index, workspaceId }) => {
           </div>
         </div>
 
-        <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.5 }}>
+        <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
           {unit.description}
         </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+        {/* Enriched Content Details */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1rem' }}>
           <ObjectiveList objectives={unit.learning_objectives} />
           <PrerequisiteList prerequisites={unit.prerequisites} />
         </div>
+
+        {/* Skills & Exercises Pills */}
+        {(skillsGained.length > 0 || practicalExercises.length > 0 || realWorldExamples.length > 0) && (
+          <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem', marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {skillsGained.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <Award size={13} style={{ color: 'var(--accent-amber)' }} />
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>SKILLS:</span>
+                {skillsGained.map((sk, sIdx) => (
+                  <span key={sIdx} style={{ fontSize: '0.75rem', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border-color)' }}>
+                    {sk}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {practicalExercises.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <Code2 size={13} style={{ color: 'var(--accent-amber)' }} />
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>PRACTICAL EXERCISES:</span>
+                {practicalExercises.map((ex, eIdx) => (
+                  <span key={eIdx} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                    • {ex}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </Card>
 
-      {/* Unit Deep-Dive Modal (SOU -> AG -> SFQ -> SLU -> RC) */}
+      {/* Unit Deep-Dive Modal */}
       {isOpenModal && (
         <div
           style={{

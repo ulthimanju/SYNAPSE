@@ -233,12 +233,18 @@ class AIJobWorker:
             existing = await LearningPath.find_one({"workspace_id": ws_id}) if hasattr(LearningPath, "find_one") else None
             if existing:
                 existing.title = lp_data["title"]
+                existing.description = lp_data.get("description", "Comprehensive curriculum roadmap.")
+                existing.estimated_total_time = lp_data.get("estimated_total_time", "10 hours")
+                existing.difficulty = lp_data.get("difficulty", "Intermediate")
                 existing.units = lp_data["units"]
                 await existing.save()
             else:
                 lp = LearningPath(
                     workspace_id=ws_id,
                     title=lp_data["title"],
+                    description=lp_data.get("description", "Comprehensive curriculum roadmap."),
+                    estimated_total_time=lp_data.get("estimated_total_time", "10 hours"),
+                    difficulty=lp_data.get("difficulty", "Intermediate"),
                     units=lp_data["units"],
                 )
                 try:
