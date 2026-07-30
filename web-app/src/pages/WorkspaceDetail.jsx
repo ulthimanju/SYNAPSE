@@ -278,18 +278,18 @@ export const WorkspaceDetail = () => {
     <WorkspaceLayout>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
-        {/* Tab Navigation (Sticky Header) */}
+        {/* Tab Navigation (Fixed Header) */}
         <div
           style={{
             position: 'sticky',
-            top: 0,
-            zIndex: 20,
+            top: '-0.75rem',
+            zIndex: 30,
             backgroundColor: 'var(--bg-primary)',
             display: 'flex',
             gap: '0.5rem',
             borderBottom: '1px solid var(--border-color)',
-            paddingTop: '0.5rem',
-            paddingBottom: '0.75rem',
+            margin: '-0.75rem -2rem 1rem -2rem',
+            padding: '0.875rem 2rem',
             overflowX: 'auto',
           }}
         >
