@@ -8,7 +8,7 @@ export const AppShell = ({ children }) => {
       <SideNavigation />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <TopBar />
-        <main style={{ flex: 1, padding: '2rem', overflowY: 'auto' }}>
+        <main style={{ flex: 1, padding: '0.75rem 2rem 2rem 2rem', overflowY: 'auto' }}>
           {children}
         </main>
       </div>
