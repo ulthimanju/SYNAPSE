@@ -195,15 +195,21 @@ services:
         aliases:
           - gateway
 
-  # Web Application (Port 3000 -> 80)
+  # Web Application (Vite Dev Server with HMR - Port 3000)
   web-app:
     build:
       context: ./web-app
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: synapse-web-app
     restart: always
     ports:
-      - "3000:80"
+      - "3000:3000"
+    volumes:
+      - ./web-app:/app
+      - /app/node_modules
+    environment:
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
     depends_on:
       - gateway
     networks:
