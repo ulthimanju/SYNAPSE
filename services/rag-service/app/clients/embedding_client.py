@@ -27,12 +27,13 @@ class GeminiEmbeddingClient(BaseEmbeddingClient):
             response = genai.embed_content(
                 model=self.model,
                 content=text,
-                task_type="retrieval_query"
+                task_type="retrieval_query",
+                output_dimensionality=768,
             )
             embedding = response.get("embedding", [])
             if len(embedding) == 768:
                 return embedding
-            return [0.0] * 768
+            return embedding[:768] if len(embedding) > 768 else [0.0] * 768
         except Exception as exc:
             logger.warning(f"Gemini query embedding generation notice: {exc}. Returning deterministic query vector.")
             import hashlib

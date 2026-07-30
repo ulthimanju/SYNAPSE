@@ -30,13 +30,32 @@ class GeminiEmbeddingClient(BaseEmbeddingClient):
                 genai.configure(api_key=self.api_key)
                 
             embeddings = []
-            for text in texts:
-                res = genai.embed_content(
-                    model=self.model_name,
-                    content=text,
-                    task_type="retrieval_document",
-                )
-                embeddings.append(res["embedding"])
+            batch_size = 32
+            for i in range(0, len(texts), batch_size):
+                batch = texts[i : i + batch_size]
+                try:
+                    res = genai.embed_content(
+                        model=self.model_name,
+                        content=batch,
+                        task_type="retrieval_document",
+                        output_dimensionality=768,
+                    )
+                    batch_vecs = res.get("embedding", [])
+                    if batch_vecs and isinstance(batch_vecs, list) and len(batch_vecs) > 0 and isinstance(batch_vecs[0], list):
+                        embeddings.extend(batch_vecs)
+                    elif batch_vecs and isinstance(batch_vecs, list) and isinstance(batch_vecs[0], (int, float)):
+                        embeddings.append(batch_vecs)
+                except Exception as b_exc:
+                    logger.warning(f"Batch embedding fallback for batch {i}:{i+batch_size}: {b_exc}")
+                    for text in batch:
+                        single_res = genai.embed_content(
+                            model=self.model_name,
+                            content=text,
+                            task_type="retrieval_document",
+                            output_dimensionality=768,
+                        )
+                        embeddings.append(single_res["embedding"])
+
             return embeddings
 
         except Exception as exc:
