@@ -106,8 +106,9 @@ class ChatService:
             api_key = os.getenv("GEMINI_API_KEY", "")
             if api_key:
                 genai.configure(api_key=api_key)
+            model_name = os.getenv("LLM_PRIMARY_MODEL", "gemini-flash-latest")
             model = genai.GenerativeModel(
-                model_name="models/gemini-2.5-flash",
+                model_name=model_name,
                 system_instruction=RAG_CHAT_SYSTEM_PROMPT
             )
             res = model.generate_content(prompt)

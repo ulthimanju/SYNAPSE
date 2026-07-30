@@ -614,7 +614,7 @@ async def get_generation_job_status(
             "progress": 100,
             "error": None,
             "retry_count": 0,
-            "ai_model": "gemini-2.5-flash",
+            "ai_model": os.getenv("LLM_PRIMARY_MODEL", "gemini-flash-latest"),
         })
 
     return APIResponse(message="Job status retrieved.", data={

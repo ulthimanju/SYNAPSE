@@ -8,5 +8,6 @@ logger = logging.getLogger(__name__)
 def get_ai_provider() -> BaseAIProvider:
     """Factory function returning configured AI provider based on environment variables."""
     provider_name = os.getenv("AI_PROVIDER", "gemini").lower()
-    logger.info(f"Instantiating AI Provider: {provider_name} (Model: gemini-2.5-flash)")
+    from shared.config import settings
+    logger.info(f"Instantiating AI Provider: {provider_name} (Model: {settings.ai.llm_primary_model})")
     return GeminiFlashProvider()
