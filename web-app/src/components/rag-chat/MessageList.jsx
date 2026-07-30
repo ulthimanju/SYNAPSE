@@ -1,9 +1,15 @@
 import React, { useEffect, useRef } from 'react';
 import { MessageBubble } from './MessageBubble';
 import { Card } from '../common/Card';
-import { MessageSquare } from 'lucide-react';
+import { Sparkles, ArrowUpRight, HelpCircle } from 'lucide-react';
 
-export const MessageList = ({ messages = [] }) => {
+const SUGGESTED_PROMPTS = [
+  "Summarize the core architectural design and service boundaries in this workspace.",
+  "What are the primary technical concepts and takeaways from the uploaded documents?",
+  "Explain how data flows between services in this domain architecture.",
+];
+
+export const MessageList = ({ messages = [], onSelectPrompt }) => {
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -12,29 +18,68 @@ export const MessageList = ({ messages = [] }) => {
 
   if (!messages || messages.length === 0) {
     return (
-      <Card className="editorial-card" style={{ padding: '3rem 2rem', textAlign: 'center', margin: '1rem 0' }}>
+      <div style={{ padding: '2rem 1rem', textAlign: 'center', maxWidth: '640px', margin: '0 auto' }}>
         <div
           style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '50%',
+            width: '56px',
+            height: '56px',
+            borderRadius: '16px',
             backgroundColor: 'var(--accent-light)',
             color: 'var(--accent-amber-hover)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            margin: '0 auto 1rem auto',
+            margin: '0 auto 1.25rem auto',
+            border: '1px solid var(--border-color)',
           }}
         >
-          <MessageSquare size={24} />
+          <Sparkles size={28} />
         </div>
-        <h4 className="font-serif" style={{ fontSize: '1.125rem', marginBottom: '0.375rem' }}>
-          Singleton Workspace RAG Assistant
-        </h4>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', maxWidth: '420px', margin: '0 auto' }}>
-          Ask any question about this workspace. Answers are generated using Gemini 2.5 Flash grounded in 768-dim vector embeddings with exact citations.
+        <h3 className="font-serif" style={{ fontSize: '1.35rem', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+          Workspace AI Research Assistant
+        </h3>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.6, marginBottom: '2rem' }}>
+          Ask questions grounded directly in your uploaded workspace documents. Responses are synthesized via Google Gemini RAG with exact vector citations.
         </p>
-      </Card>
+
+        {/* Suggested Prompts */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', textAlign: 'left' }}>
+          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: '0.25rem' }}>
+            SUGGESTED EXPLORATIONS
+          </div>
+          {SUGGESTED_PROMPTS.map((promptText, idx) => (
+            <button
+              key={idx}
+              onClick={() => onSelectPrompt && onSelectPrompt(promptText)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.875rem 1.125rem',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-color)',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '0.875rem',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                textAlign: 'left',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'var(--accent-amber)';
+                e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--border-color)';
+                e.currentTarget.style.backgroundColor = 'var(--bg-card)';
+              }}
+            >
+              <span>{promptText}</span>
+              <ArrowUpRight size={16} style={{ color: 'var(--accent-amber)', flexShrink: 0, marginLeft: '0.5rem' }} />
+            </button>
+          ))}
+        </div>
+      </div>
     );
   }
 

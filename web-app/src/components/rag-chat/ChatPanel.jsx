@@ -4,7 +4,7 @@ import { ChatInput } from './ChatInput';
 import { ClearChatDialog } from './ClearChatDialog';
 import { Button } from '../common/Button';
 import { api } from '../../services/api';
-import { MessageSquare, Trash2 } from 'lucide-react';
+import { MessageSquare, Trash2, Sparkles, ShieldCheck } from 'lucide-react';
 
 export const ChatPanel = ({ workspaceId }) => {
   const [messages, setMessages] = useState([]);
@@ -41,30 +41,25 @@ export const ChatPanel = ({ workspaceId }) => {
 
     try {
       const res = await api.post(`/workspaces/${workspaceId}/chat`, { query: queryText });
-      if (res?.data) {
+      const payload = res?.data || res;
+      if (payload && payload.answer) {
         const assistantMsg = {
-          id: res.data.message_id || `asst-${Date.now()}`,
+          id: payload.message_id || `asst-${Date.now()}`,
           role: 'assistant',
-          content: res.data.answer,
-          sources: res.data.sources || [],
+          content: payload.answer,
+          sources: payload.sources || [],
         };
         setMessages((prev) => [...prev, assistantMsg]);
       }
     } catch (err) {
-      const mockAsstMsg = {
-        id: `asst-${Date.now()}`,
+      console.error('RAG chat error:', err);
+      const errorMsg = {
+        id: `err-${Date.now()}`,
         role: 'assistant',
-        content: `Based on the retrieved research documents for this workspace, Synapse decouples microservice architectures (Identity, Workspace, Document Processing, AI, and RAG Service) and utilizes Gemini 2.5 Flash for RAG context synthesis.`,
-        sources: [
-          {
-            chunk_id: 'chk-1',
-            document_id: 'doc-1',
-            score: 0.94,
-            heading: 'System Architecture Overview',
-          },
-        ],
+        content: `**RAG Search Notice**: Could not complete query vector retrieval. Please ensure documents have finished parsing and try again.`,
+        sources: [],
       };
-      setMessages((prev) => [...prev, mockAsstMsg]);
+      setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setLoading(false);
     }
@@ -84,11 +79,14 @@ export const ChatPanel = ({ workspaceId }) => {
   };
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', minHeight: '520px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>
-        <div>
-          <span className="editorial-badge" style={{ marginBottom: '0.25rem' }}>SINGLETON WORKSPACE ASSISTANT</span>
-          <h2 className="font-serif" style={{ fontSize: '1.5rem', color: 'var(--text-primary)' }}>Workspace AI RAG Assistant</h2>
+    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 150px)' }}>
+      {/* Header bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10B981' }} />
+          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+            RAG VECTOR CHAT ENGINE
+          </span>
         </div>
 
         {messages.length > 0 && (
@@ -99,10 +97,12 @@ export const ChatPanel = ({ workspaceId }) => {
         )}
       </div>
 
-      <div style={{ flex: 1, minHeight: '380px', overflowY: 'auto' }}>
-        <MessageList messages={messages} />
+      {/* Message Stream area */}
+      <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.5rem' }}>
+        <MessageList messages={messages} onSelectPrompt={handleSendMessage} />
       </div>
 
+      {/* Floating Chat Input bar */}
       <ChatInput onSendMessage={handleSendMessage} loading={loading} />
 
       <ClearChatDialog
