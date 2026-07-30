@@ -57,13 +57,16 @@ export const MarkdownRenderer = ({ content }) => {
             <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }} {...props} />
           ),
           ul: ({ node, ...props }) => (
-            <ul style={{ paddingLeft: '1.5rem', marginBottom: '1rem', color: 'var(--text-secondary)' }} {...props} />
+            <ul style={{ paddingLeft: '1.5rem', marginBottom: '1rem', color: 'var(--text-secondary)', listStyleType: 'disc' }} {...props} />
           ),
           ol: ({ node, ...props }) => (
-            <ol style={{ paddingLeft: '1.5rem', marginBottom: '1rem', color: 'var(--text-secondary)' }} {...props} />
+            <ol style={{ paddingLeft: '1.5rem', marginBottom: '1rem', color: 'var(--text-secondary)', listStyleType: 'decimal' }} {...props} />
           ),
           li: ({ node, ...props }) => (
             <li style={{ marginBottom: '0.375rem', lineHeight: 1.6 }} {...props} />
+          ),
+          a: ({ node, ...props }) => (
+            <a style={{ color: 'var(--accent-amber-hover)', textDecoration: 'underline', textUnderlineOffset: '3px' }} target="_blank" rel="noreferrer" {...props} />
           ),
           blockquote: ({ node, ...props }) => (
             <blockquote
@@ -79,8 +82,11 @@ export const MarkdownRenderer = ({ content }) => {
               {...props}
             />
           ),
-          code: ({ node, inline, className, children, ...props }) => {
-            if (inline) {
+          code: ({ node, className, children, ...props }) => {
+            const match = /language-(\w+)/.exec(className || '');
+            const strChildren = String(children || '');
+            const isInline = !match && !strChildren.includes('\n');
+            if (isInline) {
               return (
                 <code
                   style={{
@@ -101,7 +107,7 @@ export const MarkdownRenderer = ({ content }) => {
             return (
               <pre
                 style={{
-                  backgroundColor: 'var(--bg-card)',
+                  backgroundColor: '#0d1117',
                   border: '1px solid var(--border-color)',
                   borderRadius: 'var(--radius-sm)',
                   padding: '1rem',
@@ -110,21 +116,20 @@ export const MarkdownRenderer = ({ content }) => {
                   fontSize: '0.85rem',
                   lineHeight: 1.5,
                   margin: '1rem 0',
-                  color: 'var(--text-primary)',
+                  color: '#e6edf3',
                 }}
               >
-                <code {...props}>{children}</code>
+                <code className={className} {...props}>{children}</code>
               </pre>
             );
           },
           table: ({ node, ...props }) => (
-            <div style={{ overflowX: 'auto', marginBottom: '1.25rem' }}>
+            <div style={{ overflowX: 'auto', marginBottom: '1.25rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)' }}>
               <table
                 style={{
                   width: '100%',
                   borderCollapse: 'collapse',
                   fontSize: '0.875rem',
-                  border: '1px solid var(--border-color)',
                 }}
                 {...props}
               />
@@ -137,8 +142,10 @@ export const MarkdownRenderer = ({ content }) => {
                 padding: '0.625rem 0.875rem',
                 textAlign: 'left',
                 fontWeight: 600,
-                border: '1px solid var(--border-color)',
+                borderBottom: '1px solid var(--border-color)',
                 color: 'var(--text-primary)',
+                fontSize: '0.75rem',
+                fontFamily: 'var(--font-mono)',
               }}
               {...props}
             />
@@ -147,7 +154,7 @@ export const MarkdownRenderer = ({ content }) => {
             <td
               style={{
                 padding: '0.5rem 0.875rem',
-                border: '1px solid var(--border-color)',
+                borderBottom: '1px solid var(--border-color)',
                 color: 'var(--text-secondary)',
               }}
               {...props}
