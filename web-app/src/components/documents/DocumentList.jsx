@@ -2,7 +2,7 @@ import React from 'react';
 import { DocumentRow } from './DocumentRow';
 import { EmptyState } from '../feedback/EmptyState';
 
-export const DocumentList = ({ documents = [], onDelete }) => {
+export const DocumentList = ({ documents = [], onDelete, onRetry }) => {
   if (!documents || documents.length === 0) {
     return (
       <EmptyState
@@ -18,7 +18,7 @@ export const DocumentList = ({ documents = [], onDelete }) => {
         WORKSPACE DOCUMENTS ({documents.length})
       </div>
       {documents.map((doc) => (
-        <DocumentRow key={doc.id} document={doc} onDelete={onDelete} />
+        <DocumentRow key={doc.id} document={doc} onDelete={onDelete} onRetry={onRetry} />
       ))}
     </div>
   );

@@ -294,6 +294,18 @@ export const WorkspaceDetail = () => {
     }
   };
 
+  const handleRetryDocument = async (doc) => {
+    try {
+      await api.post(`/workspaces/${workspaceId}/documents/${doc.id}/retry`);
+      setDocuments((prev) =>
+        prev.map((d) => (d.id === doc.id ? { ...d, status: 'processing', processing_stage: 'parse' } : d))
+      );
+    } catch (err) {
+      console.error(`Failed to retry document ${doc.filename}:`, err);
+      alert(`Failed to restart processing for document "${doc.filename}". Please try again.`);
+    }
+  };
+
   const tabs = [
     { id: 'documents', label: 'Documents & Ingestion', icon: FileText },
     { id: 'summary', label: 'AI Summary', icon: Sparkles },
@@ -377,7 +389,7 @@ export const WorkspaceDetail = () => {
         {activeTab === 'documents' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <UploadZone onUpload={handleUpload} loading={uploading} uploadStatuses={uploadStatuses} />
-            <DocumentList documents={documents} onDelete={handleDeleteDocument} />
+            <DocumentList documents={documents} onDelete={handleDeleteDocument} onRetry={handleRetryDocument} />
           </div>
         )}
 

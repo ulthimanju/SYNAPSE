@@ -152,3 +152,52 @@ class DocumentService:
         await self.storage.delete_file(doc.storage_key, auth_token=auth_token)
         await self.doc_repo.delete(doc)
         return True
+
+    async def retry_document_processing(
+        self,
+        document_id: str,
+        workspace_id: str,
+        user_id: str,
+        auth_token: Optional[str] = None
+    ) -> DocumentRead:
+        """Resets document status to 'processing' and re-spawns ParserService background processing pipeline."""
+        doc = await self.doc_repo.get_by_id(document_id)
+        if not doc:
+            raise NotFoundException("Document not found")
+
+        from ..schemas.enums import DocumentStatus, ProcessingStage
+        await self.doc_repo.update_status(
+            doc,
+            status=DocumentStatus.PROCESSING.value,
+            processing_stage=ProcessingStage.PARSE.value
+        )
+
+        from .parser_service import ParserService
+        parser_service = ParserService(
+            doc_repo=self.doc_repo,
+            storage_service=self.storage,
+            publisher=self.publisher
+        )
+
+        task = asyncio.create_task(parser_service.parse_and_store_document(
+            document_id=document_id,
+            workspace_id=workspace_id,
+            storage_key=doc.storage_key,
+            auth_token=auth_token
+        ))
+        _BACKGROUND_TASKS.add(task)
+        task.add_done_callback(_BACKGROUND_TASKS.discard)
+
+        return DocumentRead(
+            id=str(doc.id),
+            workspace_id=doc.workspace_id,
+            filename=doc.filename,
+            content_type=doc.content_type,
+            file_size=doc.file_size,
+            storage_key=doc.storage_key,
+            status=DocumentStatus.PROCESSING.value,
+            processing_stage=ProcessingStage.PARSE.value,
+            uploaded_by=doc.uploaded_by,
+            created_at=doc.created_at,
+            updated_at=doc.updated_at,
+        )
