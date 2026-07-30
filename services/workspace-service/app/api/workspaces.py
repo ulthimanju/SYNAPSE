@@ -142,28 +142,17 @@ async def workspace_chat_turn(
     from shared.config.settings import settings
     rag_service_url = f"{settings.rag_service_url}/chat"
 
-    chat_data = {
-        "answer": f"Based on retrieved research documents for this workspace, Synapse decouples microservice architectures and utilizes Gemini 2.5 Flash for RAG context synthesis.",
-        "sources": [
-            {
-                "chunk_id": "chk-1",
-                "document_id": "doc-1",
-                "score": 0.94,
-                "heading": "Microservices Architecture",
-            }
-        ],
-        "message_id": f"msg-1",
-    }
-
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=120.0) as client:
             res = await client.post(rag_service_url, json={"workspace_id": workspace_id, "query": query})
             if res.status_code == 200:
-                chat_data = res.json().get("data", chat_data)
+                chat_data = res.json().get("data", {})
+                return APIResponse(message="Workspace chat turn processed.", data=chat_data)
+            else:
+                raise ServiceUnavailableException(f"RAG Service returned status {res.status_code}")
     except Exception as exc:
-        print(f"RAG Service connection notice: {exc}")
-
-    return APIResponse(message="Workspace chat turn processed.", data=chat_data)
+        logger.error(f"RAG Service connection error: {exc}")
+        raise ServiceUnavailableException("RAG Service is currently unavailable. Please try again.")
 
 @router.get("/{workspace_id}/chat/history", response_model=APIResponse[List[dict]])
 async def get_workspace_chat_history(
