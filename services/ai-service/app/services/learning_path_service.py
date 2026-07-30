@@ -143,60 +143,6 @@ class LearningPathService:
                     units=nodes
                 )
         except Exception as exc:
-            logger.warning(f"Error parsing Gemini Knowledge Graph response: {exc}. Returning fallback curriculum.")
-
-        return self._build_fallback_curriculum(summary)
-
-    def _build_fallback_curriculum(self, summary: dict) -> LearningPathResponse:
-        """Synthesizes structured fallback curriculum based on workspace topics."""
-        topics = summary.get("key_topics", ["System Architecture", "Microservices", "Vector Databases"])
-        nodes = [
-            KnowledgeNode(
-                id="domain-1",
-                parent="root-workspace",
-                type="domain",
-                title="Domain 1: Core System Architecture",
-                description="Introduction to core system architecture and modular service layout.",
-                difficulty="Beginner",
-                estimated_time="60 min",
-                learning_objectives=["Understand modular architecture design"],
-                skills_gained=["System Layout Planning"],
-                expected_outcomes=["Build cohesive service structures"],
-                keywords=topics[:3],
-                depends_on=[],
-                children=["module-1"]
-            ),
-            KnowledgeNode(
-                id="module-1",
-                parent="domain-1",
-                type="module",
-                title="Module 1: Vector Databases & RAG Pipelines",
-                description="Deep dive into vector embeddings, similarity search, and RAG pipelines.",
-                difficulty="Intermediate",
-                estimated_time="90 min",
-                learning_objectives=["Implement similarity search using vector databases"],
-                skills_gained=["RAG Pipeline Engineering"],
-                expected_outcomes=["Deploy production RAG pipelines"],
-                keywords=topics[2:5] if len(topics) >= 5 else ["Vector Search"],
-                depends_on=["domain-1"],
-                children=[]
-            )
-        ]
-        knowledge_graph = KnowledgeGraph(root="root-workspace", nodes=nodes)
-        role_paths = [
-            RoleLearningPath(
-                id="path-architect",
-                title="System Architect Learning Path",
-                description="Comprehensive path for system architecture engineering.",
-                node_sequence=["domain-1", "module-1"]
-            )
-        ]
-        return LearningPathResponse(
-            title=f"Knowledge Graph: {summary.get('title', 'Workspace')}",
-            description="Textbook-grade hierarchical knowledge graph and role-based learning paths.",
-            estimated_total_time="6 hours",
-            difficulty="Intermediate",
-            knowledge_graph=knowledge_graph,
-            learning_paths=role_paths,
-            units=nodes
-        )
+            logger.error(f"Error generating Gemini Knowledge Graph response: {exc}")
+            from shared.exceptions import ServiceUnavailableException
+            raise ServiceUnavailableException(f"Failed to generate learning path: {exc}")

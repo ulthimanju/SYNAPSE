@@ -389,15 +389,7 @@ export const WorkspaceDetail = () => {
                 onRegenerate={handleQueueLearningPath}
               />
             ) : (
-              <div style={{ textAlign: 'center', padding: '2rem 0' }}>
-                <LearningPathPlaceholder />
-                <div style={{ marginTop: '1rem' }}>
-                  <Button onClick={handleQueueLearningPath}>
-                    <BookOpen size={16} />
-                    <span>Generate Learning Path</span>
-                  </Button>
-                </div>
-              </div>
+              <LearningPathPlaceholder onGenerate={handleQueueLearningPath} />
             )}
           </div>
         )}

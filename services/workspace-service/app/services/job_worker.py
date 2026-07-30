@@ -209,49 +209,49 @@ class AIJobWorker:
                 logger.warning(f"Auto-chaining notice: {exc}")
 
         elif job.job_type == "LEARNING_PATH":
-            lp_data = {
-                "title": "Mastery Path: Distributed Systems Architecture",
-                "units": [
-                    {
-                        "id": "unit-1",
-                        "title": "1. Foundations of Microservices & Multi-Agent Design",
-                        "description": "Introduction to event-driven architectures, FastAPI microservices, and identity management.",
-                        "difficulty": "Beginner",
-                        "estimated_time": "45 min",
-                        "prerequisites": ["Python AsyncIO", "HTTP REST"],
-                        "learning_objectives": ["Understand service separation", "Configure JWT authorization"],
-                        "topics": ["FastAPI", "JWT Auth", "Monorepo Structure"],
-                    },
-                ],
-            }
+            ai_data = None
             try:
-                async with httpx.AsyncClient(timeout=120.0) as client:
+                async with httpx.AsyncClient(timeout=180.0) as client:
                     res = await client.post(f"{ai_service_url}/learning-path", json={"workspace_id": ws_id})
                     if res.status_code == 200:
-                        lp_data = res.json().get("data", lp_data)
+                        ai_data = res.json().get("data")
+                    else:
+                        raise Exception(f"AI service returned HTTP {res.status_code}: {res.text}")
             except Exception as exc:
-                logger.warning(f"AI Service HTTP notice: {exc}")
+                logger.error(f"Learning path generation failed for workspace {ws_id}: {exc}")
+                job.status = "FAILED"
+                job.error_message = str(exc)
+                job.completed_at = datetime.now(timezone.utc)
+                await job.save()
+                return
+
+            if not ai_data or not ai_data.get("title"):
+                job.status = "FAILED"
+                job.error_message = "AI service returned empty learning path payload."
+                job.completed_at = datetime.now(timezone.utc)
+                await job.save()
+                return
 
             existing = await LearningPath.find_one({"workspace_id": ws_id}) if hasattr(LearningPath, "find_one") else None
             if existing:
-                existing.title = lp_data["title"]
-                existing.description = lp_data.get("description", "Comprehensive curriculum roadmap.")
-                existing.estimated_total_time = lp_data.get("estimated_total_time", "12 hours")
-                existing.difficulty = lp_data.get("difficulty", "Intermediate")
-                existing.knowledge_graph = lp_data.get("knowledge_graph", {})
-                existing.learning_paths = lp_data.get("learning_paths", [])
-                existing.units = lp_data.get("units", [])
+                existing.title = ai_data["title"]
+                existing.description = ai_data.get("description", "Comprehensive curriculum roadmap.")
+                existing.estimated_total_time = ai_data.get("estimated_total_time", "12 hours")
+                existing.difficulty = ai_data.get("difficulty", "Intermediate")
+                existing.knowledge_graph = ai_data.get("knowledge_graph", {})
+                existing.learning_paths = ai_data.get("learning_paths", [])
+                existing.units = ai_data.get("units", [])
                 await existing.save()
             else:
                 lp = LearningPath(
                     workspace_id=ws_id,
-                    title=lp_data["title"],
-                    description=lp_data.get("description", "Comprehensive curriculum roadmap."),
-                    estimated_total_time=lp_data.get("estimated_total_time", "12 hours"),
-                    difficulty=lp_data.get("difficulty", "Intermediate"),
-                    knowledge_graph=lp_data.get("knowledge_graph", {}),
-                    learning_paths=lp_data.get("learning_paths", []),
-                    units=lp_data.get("units", []),
+                    title=ai_data["title"],
+                    description=ai_data.get("description", "Comprehensive curriculum roadmap."),
+                    estimated_total_time=ai_data.get("estimated_total_time", "12 hours"),
+                    difficulty=ai_data.get("difficulty", "Intermediate"),
+                    knowledge_graph=ai_data.get("knowledge_graph", {}),
+                    learning_paths=ai_data.get("learning_paths", []),
+                    units=ai_data.get("units", []),
                 )
                 try:
                     await lp.insert()
