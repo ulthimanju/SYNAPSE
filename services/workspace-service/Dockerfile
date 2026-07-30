@@ -3,10 +3,10 @@ FROM python:3.11-slim
 WORKDIR /app
 
 COPY pyproject.toml .
+RUN pip install --no-cache-dir fastapi uvicorn pydantic pydantic-settings PyJWT email-validator httpx python-jose[cryptography] passlib[bcrypt] beanie==1.28.0 motor asyncpg sqlalchemy pgvector redis pika google-generativeai
+
 COPY shared ./shared
 COPY services/workspace-service ./service
-
-RUN pip install --no-cache-dir fastapi uvicorn pydantic pydantic-settings PyJWT email-validator httpx python-jose[cryptography] passlib[bcrypt] beanie==1.28.0 motor asyncpg sqlalchemy pgvector redis pika google-generativeai
 
 ENV PYTHONPATH=/app
 
