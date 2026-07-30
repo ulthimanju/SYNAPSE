@@ -4,8 +4,9 @@ import { WorkspaceLayout } from '../layouts/WorkspaceLayout';
 import { Card } from '../components/common/Card';
 import { EmptyState } from '../components/feedback/EmptyState';
 import { Button } from '../components/common/Button';
+import { Badge } from '../components/common/Badge';
 import { api } from '../services/api';
-import { Plus, FolderPlus } from 'lucide-react';
+import { Plus, Users, Crown, FolderKanban } from 'lucide-react';
 
 export const Dashboard = () => {
   const [workspaces, setWorkspaces] = useState([]);
@@ -17,8 +18,9 @@ export const Dashboard = () => {
       setLoading(true);
       try {
         const res = await api.get('/workspaces');
-        if (res?.data && Array.isArray(res.data)) {
-          setWorkspaces(res.data);
+        const list = res?.data?.data || res?.data || [];
+        if (Array.isArray(list)) {
+          setWorkspaces(list);
         } else {
           setWorkspaces([]);
         }
@@ -32,8 +34,8 @@ export const Dashboard = () => {
     fetchDashboardMetrics();
   }, []);
 
-  const totalWorkspaces = workspaces.length;
-  const totalDocuments = workspaces.reduce((acc, ws) => acc + (ws.document_count || 0), 0);
+  const ownedWorkspaces = workspaces.filter((ws) => ws.is_owner !== false && ws.role !== 'collaborator');
+  const collaboratedWorkspaces = workspaces.filter((ws) => ws.is_owner === false || ws.role === 'collaborator');
 
   return (
     <WorkspaceLayout>
@@ -43,34 +45,40 @@ export const Dashboard = () => {
             <h1 style={{ fontSize: '2rem' }}>Dashboard Overview</h1>
             <p style={{ color: 'var(--text-secondary)' }}>Welcome to Synapse workspace intelligence hub</p>
           </div>
-          <Button onClick={() => navigate('/workspaces')}>
-            <Plus size={16} /> Manage Workspaces
-          </Button>
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <Button variant="outline" onClick={() => navigate('/collaborations')}>
+              <Users size={16} /> Collaborated Workspaces ({collaboratedWorkspaces.length})
+            </Button>
+            <Button onClick={() => navigate(ownedWorkspaces.length ? `/workspaces/${ownedWorkspaces[0].id}` : '/workspaces')}>
+              <Plus size={16} /> Manage Owned Workspaces
+            </Button>
+          </div>
         </div>
 
         {/* Metrics Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem' }}>
-          <Card title="Active Workspaces" subtitle="Managed environments">
-            <h2 className="font-mono" style={{ fontSize: '2.5rem', color: 'var(--accent-amber)' }}>
-              {loading ? '-' : totalWorkspaces}
-            </h2>
+          <Card title="Owned Workspaces" subtitle="Environments you created">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <Crown size={24} style={{ color: 'var(--accent-amber)' }} />
+              <h2 className="font-mono" style={{ fontSize: '2.5rem', color: 'var(--accent-amber)', margin: 0 }}>
+                {loading ? '-' : ownedWorkspaces.length}
+              </h2>
+            </div>
           </Card>
-          <Card title="Parsed Documents" subtitle="Vector indexed items">
-            <h2 className="font-mono" style={{ fontSize: '2.5rem', color: 'var(--accent-amber)' }}>
-              {loading ? '-' : totalDocuments}
-            </h2>
-          </Card>
-          <Card title="RAG Queries" subtitle="Total session queries">
-            <h2 className="font-mono" style={{ fontSize: '2.5rem', color: 'var(--accent-amber)' }}>
-              {loading ? '-' : 0}
-            </h2>
+          <Card title="Collaborated Workspaces" subtitle="Shared with your email">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <Users size={24} style={{ color: 'var(--accent-amber-hover)' }} />
+              <h2 className="font-mono" style={{ fontSize: '2.5rem', color: 'var(--accent-amber-hover)', margin: 0 }}>
+                {loading ? '-' : collaboratedWorkspaces.length}
+              </h2>
+            </div>
           </Card>
         </div>
 
-        {/* Empty State / Active Workspaces Section */}
-        {workspaces.length === 0 ? (
+        {/* Owned Workspaces Section */}
+        {ownedWorkspaces.length === 0 ? (
           <EmptyState
-            title="No Active Workspaces"
+            title="No Owned Workspaces"
             description="You have not created any knowledge workspaces yet. Create your first workspace to upload documents and generate AI learning paths."
             actionText="Create Your First Workspace"
             onAction={() => navigate('/workspaces')}
@@ -78,17 +86,20 @@ export const Dashboard = () => {
         ) : (
           <div>
             <h3 className="font-serif" style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>
-              Your Workspaces ({workspaces.length})
+              Owned Workspaces ({ownedWorkspaces.length})
             </h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
-              {workspaces.map((ws) => (
+              {ownedWorkspaces.map((ws) => (
                 <div
                   key={ws.id}
                   onClick={() => navigate(`/workspaces/${ws.id}`)}
                   className="editorial-card"
                   style={{ padding: '1.25rem', cursor: 'pointer' }}
                 >
-                  <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>{ws.name}</h4>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                    <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>{ws.name}</h4>
+                    <Badge variant="accent" style={{ fontSize: '0.7rem' }}>Owner</Badge>
+                  </div>
                   <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
                     {ws.description || 'No description provided.'}
                   </p>

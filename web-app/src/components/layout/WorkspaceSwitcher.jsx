@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ChevronDown, FolderKanban, Plus, Loader2, Trash2 } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { ChevronDown, FolderKanban, Plus, Loader2, Trash2, Users, Crown } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
 import { CreateWorkspaceDialog } from '../workspace/CreateWorkspaceDialog';
 import { DeleteWorkspaceModal } from '../workspace/DeleteWorkspaceModal';
@@ -10,26 +10,31 @@ export const WorkspaceSwitcher = () => {
   const [open, setOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [switcherTab, setSwitcherTab] = useState('owned'); // 'owned' | 'collaborated'
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [hoveredWsId, setHoveredWsId] = useState(null);
   
-  // Custom delete confirmation modal state
   const [targetDeleteWs, setTargetDeleteWs] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   const { activeWorkspaceId, setActiveWorkspaceId } = useAppStore();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const fetchWorkspaceTitles = useCallback(async () => {
+  const fetchWorkspaces = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get('/workspaces/titles');
-      const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-      setWorkspaces(list);
-      if (list.length > 0 && !activeWorkspaceId) {
-        setActiveWorkspaceId(list[0].id);
+      const res = await api.get('/workspaces');
+      const list = res?.data?.data || res?.data || [];
+      if (Array.isArray(list)) {
+        setWorkspaces(list);
+        if (list.length > 0 && !activeWorkspaceId) {
+          setActiveWorkspaceId(list[0].id);
+        }
+      } else {
+        setWorkspaces([]);
       }
     } catch (err) {
       console.error('Error loading workspaces for topbar switcher');
@@ -40,8 +45,21 @@ export const WorkspaceSwitcher = () => {
   }, [activeWorkspaceId, setActiveWorkspaceId]);
 
   useEffect(() => {
-    fetchWorkspaceTitles();
+    fetchWorkspaces();
   }, []);
+
+  useEffect(() => {
+    if (location.pathname === '/collaborations') {
+      setSwitcherTab('collaborated');
+    } else {
+      const current = workspaces.find((w) => w.id === activeWorkspaceId);
+      if (current && (current.is_owner === false || current.role === 'collaborator')) {
+        setSwitcherTab('collaborated');
+      } else {
+        setSwitcherTab('owned');
+      }
+    }
+  }, [location.pathname, activeWorkspaceId, workspaces]);
 
   const handleSelectWorkspace = (wsId) => {
     setActiveWorkspaceId(wsId);
@@ -88,10 +106,9 @@ export const WorkspaceSwitcher = () => {
     setCreateLoading(true);
     try {
       const res = await api.post('/workspaces', formData);
-      const newWs = res?.data || res;
+      const newWs = res?.data?.data || res?.data;
       if (newWs?.id) {
-        const newTitle = { id: newWs.id, name: newWs.name };
-        setWorkspaces((prev) => [newTitle, ...prev]);
+        setWorkspaces((prev) => [newWs, ...prev]);
         setActiveWorkspaceId(newWs.id);
         setIsDialogOpen(false);
         navigate(`/workspaces/${newWs.id}`);
@@ -104,6 +121,10 @@ export const WorkspaceSwitcher = () => {
   };
 
   const currentWorkspace = workspaces.find((w) => w.id === activeWorkspaceId) || null;
+  const ownedWorkspaces = workspaces.filter((w) => w.is_owner !== false && w.role !== 'collaborator');
+  const collaboratedWorkspaces = workspaces.filter((w) => w.is_owner === false || w.role === 'collaborator');
+
+  const displayedWorkspaces = switcherTab === 'owned' ? ownedWorkspaces : collaboratedWorkspaces;
 
   return (
     <div style={{ position: 'relative' }}>
@@ -139,7 +160,6 @@ export const WorkspaceSwitcher = () => {
 
       {open && (
         <>
-          {/* Click-away overlay */}
           <div
             style={{ position: 'fixed', inset: 0, zIndex: 99 }}
             onClick={() => setOpen(false)}
@@ -150,7 +170,7 @@ export const WorkspaceSwitcher = () => {
               top: '100%',
               left: 0,
               marginTop: '0.375rem',
-              width: '280px',
+              width: '290px',
               backgroundColor: 'var(--bg-card)',
               border: '1px solid var(--border-color)',
               borderRadius: 'var(--radius-sm)',
@@ -159,15 +179,59 @@ export const WorkspaceSwitcher = () => {
               padding: '0.5rem',
             }}
           >
-            <div style={{
-              fontSize: '0.70rem',
-              fontWeight: 700,
-              color: 'var(--text-muted)',
-              padding: '0.25rem 0.5rem 0.375rem',
-              fontFamily: 'var(--font-mono)',
-              letterSpacing: '0.08em',
-            }}>
-              WORKSPACES ({workspaces.length})
+            {/* Owned vs Collaborated Tab Switcher */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '0.25rem',
+                padding: '0.25rem',
+                backgroundColor: 'var(--bg-secondary)',
+                borderRadius: 'var(--radius-sm)',
+                marginBottom: '0.5rem',
+              }}
+            >
+              <button
+                onClick={() => setSwitcherTab('owned')}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.375rem',
+                  padding: '0.375rem 0.5rem',
+                  fontSize: '0.75rem',
+                  fontWeight: switcherTab === 'owned' ? 600 : 500,
+                  color: switcherTab === 'owned' ? 'var(--accent-amber-hover)' : 'var(--text-secondary)',
+                  backgroundColor: switcherTab === 'owned' ? 'var(--bg-card)' : 'transparent',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                <Crown size={12} />
+                <span>Owned ({ownedWorkspaces.length})</span>
+              </button>
+              <button
+                onClick={() => setSwitcherTab('collaborated')}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.375rem',
+                  padding: '0.375rem 0.5rem',
+                  fontSize: '0.75rem',
+                  fontWeight: switcherTab === 'collaborated' ? 600 : 500,
+                  color: switcherTab === 'collaborated' ? 'var(--accent-amber-hover)' : 'var(--text-secondary)',
+                  backgroundColor: switcherTab === 'collaborated' ? 'var(--bg-card)' : 'transparent',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                <Users size={12} />
+                <span>Collaborated ({collaboratedWorkspaces.length})</span>
+              </button>
             </div>
 
             {loading ? (
@@ -175,15 +239,16 @@ export const WorkspaceSwitcher = () => {
                 <Loader2 size={14} className="animate-spin" />
                 <span>Loading workspaces…</span>
               </div>
-            ) : workspaces.length === 0 ? (
-              <div style={{ padding: '0.75rem 0.5rem', fontSize: '0.875rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-                No workspaces yet. Create one below.
+            ) : displayedWorkspaces.length === 0 ? (
+              <div style={{ padding: '0.875rem 0.5rem', fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                {switcherTab === 'owned' ? 'No owned workspaces yet.' : 'No collaborated workspaces.'}
               </div>
             ) : (
               <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
-                {workspaces.map((ws) => {
+                {displayedWorkspaces.map((ws) => {
                   const isActive = ws.id === activeWorkspaceId;
                   const isHovered = hoveredWsId === ws.id;
+                  const canDelete = ws.is_owner !== false && ws.role !== 'collaborator';
 
                   return (
                     <div
@@ -219,7 +284,7 @@ export const WorkspaceSwitcher = () => {
                         </span>
                       )}
 
-                      {isHovered && (
+                      {isHovered && canDelete && (
                         <button
                           onClick={(e) => handlePromptDelete(e, ws)}
                           style={{
