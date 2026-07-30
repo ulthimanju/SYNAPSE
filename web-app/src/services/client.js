@@ -4,7 +4,7 @@ import { STORAGE_KEYS } from '../config/constants';
 
 const client = axios.create({
   baseURL: env.apiBaseUrl,
-  timeout: 75000,
+  timeout: 0,
   headers: {
     'Content-Type': 'application/json',
   },

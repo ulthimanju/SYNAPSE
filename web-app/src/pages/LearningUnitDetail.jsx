@@ -43,7 +43,7 @@ export const LearningUnitDetail = () => {
     setLoading(true);
     setErrorMsg(null);
     try {
-      const res = await api.get(`/workspaces/${workspaceId}/units/${unitId}`, { timeout: 75000 });
+      const res = await api.get(`/workspaces/${workspaceId}/units/${unitId}`, { timeout: 0 });
       const data = res?.data || res;
       if (data) {
         setUnitContent(data);
