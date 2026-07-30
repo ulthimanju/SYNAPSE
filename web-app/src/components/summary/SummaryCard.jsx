@@ -6,9 +6,14 @@ import { StudyTimeCard } from './StudyTimeCard';
 import { TopicList } from './TopicList';
 import { MermaidDiagram } from '../common/MermaidDiagram';
 import { MarkdownRenderer } from '../common/MarkdownRenderer';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { useThemeStore } from '../../stores/themeStore';
 import { Sparkles, RefreshCw, Code, Copy, Check, X, Table, FileCode, GitBranch } from 'lucide-react';
 
 export const SummaryCard = ({ summary, onRegenerate, loading = false }) => {
+  const { theme } = useThemeStore();
+  const isDark = theme === 'dark';
   const [showJsonModal, setShowJsonModal] = useState(false);
   const [copiedJson, setCopiedJson] = useState(false);
   const [copiedCodeIdx, setCopiedCodeIdx] = useState(null);
@@ -193,9 +198,22 @@ export const SummaryCard = ({ summary, onRegenerate, loading = false }) => {
                       <span>{copiedCodeIdx === idx ? 'Copied' : 'Copy'}</span>
                     </button>
                   </div>
-                  <pre style={{ margin: 0, padding: '0.875rem 1rem', backgroundColor: '#0d1117', fontSize: '0.8125rem', fontFamily: 'var(--font-mono)', color: '#e6edf3', overflowX: 'auto', lineHeight: 1.5 }}>
-                    <code>{item.code}</code>
-                  </pre>
+                  <SyntaxHighlighter
+                    style={isDark ? vscDarkPlus : vs}
+                    language={(item.language || 'text').toLowerCase()}
+                    PreTag="div"
+                    customStyle={{
+                      margin: 0,
+                      padding: '0.875rem 1rem',
+                      backgroundColor: 'var(--bg-secondary)',
+                      fontSize: '0.8125rem',
+                      fontFamily: 'var(--font-mono)',
+                      lineHeight: 1.5,
+                      border: 'none',
+                    }}
+                  >
+                    {item.code}
+                  </SyntaxHighlighter>
                 </div>
               ))}
             </div>
