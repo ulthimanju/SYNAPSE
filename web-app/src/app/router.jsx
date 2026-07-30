@@ -5,6 +5,7 @@ import { Login } from '../pages/Login';
 import { OAuthCallback } from '../pages/OAuthCallback';
 import { Dashboard } from '../pages/Dashboard';
 import { WorkspaceDetail } from '../pages/WorkspaceDetail';
+import { LearningUnitDetail } from '../pages/LearningUnitDetail';
 import { NotFound } from '../pages/NotFound';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
 
@@ -38,6 +39,14 @@ export const AppRouter = () => {
           element={
             <ProtectedRoute>
               <WorkspaceDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/workspaces/:workspaceId/units/:unitId"
+          element={
+            <ProtectedRoute>
+              <LearningUnitDetail />
             </ProtectedRoute>
           }
         />
