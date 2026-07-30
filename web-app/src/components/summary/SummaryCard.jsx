@@ -5,6 +5,7 @@ import { DifficultyBadge } from './DifficultyBadge';
 import { StudyTimeCard } from './StudyTimeCard';
 import { TopicList } from './TopicList';
 import { MermaidDiagram } from '../common/MermaidDiagram';
+import { MarkdownRenderer } from '../common/MarkdownRenderer';
 import { Sparkles, RefreshCw, Code, Copy, Check, X, Table, FileCode, GitBranch } from 'lucide-react';
 
 export const SummaryCard = ({ summary, onRegenerate, loading = false }) => {
@@ -109,7 +110,7 @@ export const SummaryCard = ({ summary, onRegenerate, loading = false }) => {
             <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.75rem', fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>
               OVERVIEW & TEXTBOOK SYNTHESIS
             </div>
-            <div>{renderFormattedOverview(summary.overview)}</div>
+            <MarkdownRenderer content={summary.overview} />
           </div>
 
           {/* Section: Mermaid Visualizations */}
