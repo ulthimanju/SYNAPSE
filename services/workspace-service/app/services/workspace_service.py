@@ -166,7 +166,7 @@ class WorkspaceService:
         except Exception as exc:
             print(f"PG user email lookup notice: {exc}")
 
-        # 2. Check MongoDB users or memberships
+        # 2. Check MongoDB users collection
         try:
             from motor.motor_asyncio import AsyncIOMotorClient
             from shared.config import settings
@@ -175,10 +175,6 @@ class WorkspaceService:
             user_doc = await db["users"].find_one({"email": cleaned})
             if user_doc:
                 return str(user_doc["_id"])
-            
-            mem = await db["memberships"].find_one({"email": cleaned})
-            if mem:
-                return str(mem["user_id"])
         except Exception:
             pass
 
