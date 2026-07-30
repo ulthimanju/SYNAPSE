@@ -1,8 +1,14 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { useThemeStore } from '../../stores/themeStore';
 
 export const MarkdownRenderer = ({ content }) => {
+  const { theme } = useThemeStore();
+  const isDark = theme === 'dark';
+
   if (!content) return null;
 
   return (
@@ -84,8 +90,10 @@ export const MarkdownRenderer = ({ content }) => {
           ),
           code: ({ node, className, children, ...props }) => {
             const match = /language-(\w+)/.exec(className || '');
-            const strChildren = String(children || '');
-            const isInline = !match && !strChildren.includes('\n');
+            const language = match ? match[1] : '';
+            const strChildren = String(children || '').replace(/\n$/, '');
+            const isInline = !match && !String(children || '').includes('\n');
+
             if (isInline) {
               return (
                 <code
@@ -104,23 +112,27 @@ export const MarkdownRenderer = ({ content }) => {
                 </code>
               );
             }
+
             return (
-              <pre
-                style={{
-                  backgroundColor: '#0d1117',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: 'var(--radius-sm)',
-                  padding: '1rem',
-                  overflowX: 'auto',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '0.85rem',
-                  lineHeight: 1.5,
-                  margin: '1rem 0',
-                  color: '#e6edf3',
-                }}
-              >
-                <code className={className} {...props}>{children}</code>
-              </pre>
+              <div style={{ margin: '1rem 0', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
+                <SyntaxHighlighter
+                  style={isDark ? vscDarkPlus : vs}
+                  language={language || 'text'}
+                  PreTag="div"
+                  customStyle={{
+                    margin: 0,
+                    padding: '1rem',
+                    backgroundColor: 'var(--bg-secondary)',
+                    fontSize: '0.85rem',
+                    lineHeight: 1.5,
+                    fontFamily: 'var(--font-mono)',
+                    border: 'none',
+                  }}
+                  {...props}
+                >
+                  {strChildren}
+                </SyntaxHighlighter>
+              </div>
             );
           },
           table: ({ node, ...props }) => (
