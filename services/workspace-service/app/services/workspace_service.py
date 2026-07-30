@@ -141,6 +141,49 @@ class WorkspaceService:
         await self.workspace_repo.delete(workspace)
         return True
 
+    async def _check_user_exists_by_email(self, email: str) -> str | None:
+        """Checks if a user with the specified email exists in PostgreSQL identity database or MongoDB."""
+        cleaned = email.strip().lower()
+        
+        # 1. Query PostgreSQL identity database users table
+        try:
+            import asyncpg
+            from shared.config import settings
+            pg = settings.postgres
+            conn = await asyncpg.connect(
+                host=pg.host,
+                port=pg.port,
+                user=pg.user,
+                password=pg.password,
+                database=pg.db_name
+            )
+            try:
+                row = await conn.fetchrow("SELECT id FROM users WHERE LOWER(email) = $1", cleaned)
+                if row:
+                    return str(row["id"])
+            finally:
+                await conn.close()
+        except Exception as exc:
+            print(f"PG user email lookup notice: {exc}")
+
+        # 2. Check MongoDB users or memberships
+        try:
+            from motor.motor_asyncio import AsyncIOMotorClient
+            from shared.config import settings
+            client = AsyncIOMotorClient(settings.mongodb.uri)
+            db = client[settings.mongodb.db_name]
+            user_doc = await db["users"].find_one({"email": cleaned})
+            if user_doc:
+                return str(user_doc["_id"])
+            
+            mem = await db["memberships"].find_one({"email": cleaned})
+            if mem:
+                return str(mem["user_id"])
+        except Exception:
+            pass
+
+        return None
+
     async def invite_collaborator(self, owner_id: str, workspace_id: str, email: str, role: str = "collaborator"):
         """Invites a collaborator to the workspace. Restricted to workspace owner."""
         workspace = await self.workspace_repo.get_by_id(workspace_id)
@@ -151,9 +194,13 @@ class WorkspaceService:
             raise ForbiddenException("Only the workspace owner can invite collaborators")
 
         cleaned_email = email.strip().lower()
+        target_user_id = await self._check_user_exists_by_email(cleaned_email)
+        if not target_user_id:
+            raise NotFoundException("User not found in database. Only registered users can be invited.")
+
         membership = await self.membership_repo.create(
             workspace_id=workspace_id,
-            user_id=cleaned_email,
+            user_id=target_user_id,
             email=cleaned_email,
             role=role
         )
