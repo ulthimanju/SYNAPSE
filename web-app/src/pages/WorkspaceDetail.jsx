@@ -20,7 +20,7 @@ import { FileText, Sparkles, BookOpen, MessageSquare } from 'lucide-react';
 export const WorkspaceDetail = () => {
   const { workspaceId } = useParams();
   const navigate = useNavigate();
-  const { activeWorkspaceId, setActiveWorkspaceId } = useAppStore();
+  const { activeWorkspaceId, setActiveWorkspaceId, sidebarOpen } = useAppStore();
 
   const [activeTab, setActiveTab] = useState('documents');
   const [documents, setDocuments] = useState([]);
@@ -278,19 +278,21 @@ export const WorkspaceDetail = () => {
     <WorkspaceLayout>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
-        {/* Tab Navigation (Fixed Header) */}
+        {/* Tab Navigation (Position Fixed Header) */}
         <div
           style={{
-            position: 'sticky',
-            top: '-0.75rem',
-            zIndex: 30,
+            position: 'fixed',
+            top: '56px',
+            left: sidebarOpen ? '240px' : 0,
+            right: 0,
+            zIndex: 85,
             backgroundColor: 'var(--bg-primary)',
             display: 'flex',
             gap: '0.5rem',
             borderBottom: '1px solid var(--border-color)',
-            margin: '-0.75rem -2rem 1rem -2rem',
-            padding: '0.875rem 2rem',
+            padding: '0.625rem 2rem',
             overflowX: 'auto',
+            transition: 'left 0.2s ease',
           }}
         >
           {tabs.map((tab) => {
@@ -321,6 +323,9 @@ export const WorkspaceDetail = () => {
             );
           })}
         </div>
+
+        {/* Spacer for fixed Tab Navigation bar */}
+        <div style={{ height: '52px' }} />
 
         {notice && <Alert type="info" message={notice} />}
         {errorMsg && <Alert type="info" message={errorMsg} />}
