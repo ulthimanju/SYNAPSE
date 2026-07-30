@@ -115,7 +115,7 @@ class ChatService:
             if api_key:
                 genai.configure(api_key=api_key)
             primary_model = os.getenv("LLM_PRIMARY_MODEL", "models/gemini-3.6-flash")
-            raw_models = [primary_model, "models/gemini-3.6-flash", "models/gemini-3.5-flash", "models/gemini-2.5-flash", "models/gemini-2.0-flash", "models/gemini-flash-latest"]
+            raw_models = [primary_model, "models/gemini-3.6-flash", "models/gemini-3.5-flash", "models/gemini-flash-latest"]
             models_to_try = []
             for rm in raw_models:
                 m_name = rm if rm.startswith("models/") else f"models/{rm}"

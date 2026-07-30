@@ -27,9 +27,12 @@ class GeminiFlashProvider(BaseAIProvider):
         if self.api_key:
             genai.configure(api_key=self.api_key)
 
-        models_to_try = [self.model_name]
-        if self.model_name != "gemini-2.5-flash":
-            models_to_try.append("gemini-2.5-flash")
+        raw_models = [self.model_name, "models/gemini-3.6-flash", "models/gemini-3.5-flash", "models/gemini-flash-latest"]
+        models_to_try = []
+        for rm in raw_models:
+            m_name = rm if rm.startswith("models/") else f"models/{rm}"
+            if m_name not in models_to_try:
+                models_to_try.append(m_name)
 
         last_exc = None
         for m_name in models_to_try:
@@ -43,8 +46,8 @@ class GeminiFlashProvider(BaseAIProvider):
                     return response.text
             except Exception as exc:
                 last_exc = exc
-                if self._is_rate_limit_error(exc) and m_name != "gemini-2.5-flash":
-                    logger.warning(f"Model '{m_name}' hit rate limit ({exc}). Switching fallback model to 'gemini-2.5-flash'...")
+                if self._is_rate_limit_error(exc):
+                    logger.warning(f"Model '{m_name}' hit rate limit ({exc}). Switching to next fallback model...")
                     continue
                 else:
                     raise exc
