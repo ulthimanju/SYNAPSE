@@ -2,7 +2,7 @@ import json
 import re
 import logging
 from typing import Optional
-from shared.exceptions import NotFoundException
+from shared.exceptions import NotFoundException, ServiceUnavailableException
 from ..clients.document_client import DocumentServiceClient
 from ..clients.factory import get_ai_provider
 from ..prompts.unit_content import UNIT_CONTENT_SYSTEM_PROMPT, build_unit_content_prompt
@@ -96,42 +96,7 @@ class UnitContentService:
                         )
                     )
         except Exception as exc:
-            logger.warning(f"Gemini unit content notice: {exc}. Returning structured fallback.")
+            logger.error(f"Gemini unit content generation error: {exc}")
+            raise ServiceUnavailableException(f"Failed to generate AI unit content: {exc}")
 
-        # Fallback unit content
-        return UnitContentResponse(
-            workspace_id=req.workspace_id,
-            unit_id=req.unit_id,
-            unit_title=req.unit_title,
-            unit_summary=(
-                f"# {req.unit_title}\n\n"
-                f"## Concept Overview\n"
-                f"This unit provides a focused exploration of **{', '.join(req.topics if req.topics else ['Core Principles'])}**.\n\n"
-                f"## Key Objectives\n"
-                f"{chr(10).join(['- ' + obj for obj in req.learning_objectives]) if req.learning_objectives else '- Master fundamental mechanics.'}\n\n"
-                f"## Practical Takeaways\n"
-                f"Understanding these principles ensures modular system design, maintainable codebase architecture, and robust execution patterns."
-            ),
-            flashcards=[
-                UnitFlashcard(
-                    question=f"What is the primary objective of {req.unit_title}?",
-                    answer=f"To master {', '.join(req.topics[:2]) if req.topics else 'fundamental principles'}.",
-                    difficulty="Medium",
-                    tags=req.topics[:2]
-                )
-            ],
-            quiz=UnitQuiz(
-                title=f"{req.unit_title} Assessment Quiz",
-                questions=[
-                    UnitQuizQuestion(
-                        id="q1",
-                        type="multiple_choice",
-                        question=f"Which design pattern is central to {req.unit_title}?",
-                        options=["Decoupled Architecture", "Procedural Top-Down", "Global Mutable State", "Monolithic Binding"],
-                        correct_answer="Decoupled Architecture",
-                        explanation=f"Decoupled architecture enables independent module scaling and testing in {req.unit_title}.",
-                        difficulty="Medium"
-                    )
-                ]
-            )
-        )
+        raise ServiceUnavailableException("AI Provider returned empty structured payload for unit content.")
