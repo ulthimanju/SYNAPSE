@@ -149,10 +149,12 @@ class AIJobWorker:
                 "estimated_study_time": "6 hours",
             }
             try:
-                async with httpx.AsyncClient(timeout=45.0) as client:
+                async with httpx.AsyncClient(timeout=120.0) as client:
                     res = await client.post(f"{ai_service_url}/workspace-summary", json={"workspace_id": ws_id})
                     if res.status_code == 200:
                         summary_data = res.json().get("data", summary_data)
+                    else:
+                        logger.warning(f"AI Service HTTP status {res.status_code}: {res.text[:200]}")
             except Exception as exc:
                 logger.warning(f"AI Service HTTP notice: {exc}")
                 await self._update_step(job, "Call AI Service", "failed", 70)
@@ -223,7 +225,7 @@ class AIJobWorker:
                 ],
             }
             try:
-                async with httpx.AsyncClient(timeout=15.0) as client:
+                async with httpx.AsyncClient(timeout=120.0) as client:
                     res = await client.post(f"{ai_service_url}/learning-path", json={"workspace_id": ws_id})
                     if res.status_code == 200:
                         lp_data = res.json().get("data", lp_data)
