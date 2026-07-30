@@ -38,47 +38,9 @@ export const MessageList = ({ messages = [], onSelectPrompt }) => {
         <h3 className="font-serif" style={{ fontSize: '1.35rem', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
           Workspace AI Research Assistant
         </h3>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.6, marginBottom: '2rem' }}>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.6, marginBottom: '1rem' }}>
           Ask questions grounded directly in your uploaded workspace documents. Responses are synthesized via Google Gemini RAG with exact vector citations.
         </p>
-
-        {/* Suggested Prompts */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', textAlign: 'left' }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: '0.25rem' }}>
-            SUGGESTED EXPLORATIONS
-          </div>
-          {SUGGESTED_PROMPTS.map((promptText, idx) => (
-            <button
-              key={idx}
-              onClick={() => onSelectPrompt && onSelectPrompt(promptText)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0.875rem 1.125rem',
-                backgroundColor: 'var(--bg-card)',
-                border: '1px solid var(--border-color)',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '0.875rem',
-                color: 'var(--text-primary)',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                textAlign: 'left',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'var(--accent-amber)';
-                e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--border-color)';
-                e.currentTarget.style.backgroundColor = 'var(--bg-card)';
-              }}
-            >
-              <span>{promptText}</span>
-              <ArrowUpRight size={16} style={{ color: 'var(--accent-amber)', flexShrink: 0, marginLeft: '0.5rem' }} />
-            </button>
-          ))}
-        </div>
       </div>
     );
   }
