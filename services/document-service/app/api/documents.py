@@ -58,11 +58,10 @@ async def delete_document(
     return APIResponse(message="Document deleted successfully.", data={"id": document_id})
 
 @router.post("/workspaces/{workspace_id}/documents/{document_id}/retry", response_model=APIResponse[DocumentRead])
-@router.post("/documents/{document_id}/retry", response_model=APIResponse[DocumentRead])
-async def retry_document_processing(
+async def retry_workspace_document_processing(
     request: Request,
+    workspace_id: str = Path(..., description="Workspace ID"),
     document_id: str = Path(..., description="Document ID"),
-    workspace_id: str = Path(default="", description="Workspace ID"),
     current_user: AuthenticatedUser = Depends(get_current_user),
     service: DocumentService = Depends(get_document_service),
 ) -> APIResponse[DocumentRead]:
@@ -71,6 +70,23 @@ async def retry_document_processing(
     result = await service.retry_document_processing(
         document_id=document_id,
         workspace_id=workspace_id,
+        user_id=current_user.user_id,
+        auth_token=auth_token
+    )
+    return APIResponse(message="Document processing pipeline restarted.", data=result)
+
+@router.post("/documents/{document_id}/retry", response_model=APIResponse[DocumentRead])
+async def retry_document_processing(
+    request: Request,
+    document_id: str = Path(..., description="Document ID"),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    service: DocumentService = Depends(get_document_service),
+) -> APIResponse[DocumentRead]:
+    """Restarts background parsing, chunking, and embedding pipeline for a failed document."""
+    auth_token = request.headers.get("authorization")
+    result = await service.retry_document_processing(
+        document_id=document_id,
+        workspace_id="",
         user_id=current_user.user_id,
         auth_token=auth_token
     )
