@@ -273,11 +273,7 @@ export const WorkspaceDetail = () => {
 
   return (
     <WorkspaceLayout>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        <div>
-          <span className="editorial-badge" style={{ marginBottom: '0.5rem' }}>WORKSPACE ENVIRONMENT</span>
-          <h1 style={{ fontSize: '2rem' }}>Workspace Knowledge Hub</h1>
-        </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
         {/* Tab Navigation */}
         <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', overflowX: 'auto' }}>
