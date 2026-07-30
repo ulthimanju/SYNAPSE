@@ -169,20 +169,6 @@ export const LearningUnitDetail = () => {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            {/* Unit Title Header Card */}
-            <div style={{ padding: '1.5rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
-              <span className="editorial-badge" style={{ marginBottom: '0.5rem' }}>LEARNING UNIT DEEP-DIVE</span>
-              <h1 className="font-serif" style={{ fontSize: '1.75rem', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
-                {unitTitle}
-              </h1>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', fontSize: '0.8125rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                <span>Unit ID: {unitId}</span>
-                <span>•</span>
-                <span>{flashcards.length} Flashcards</span>
-                <span>•</span>
-                <span>{quizQuestions.length} Quiz Questions</span>
-              </div>
-            </div>
 
             {/* Tab-based Navigation Bar */}
             <div
