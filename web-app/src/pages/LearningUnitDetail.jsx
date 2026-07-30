@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   XCircle,
   ChevronLeft,
+  ChevronRight,
   RotateCcw,
   Sparkles,
   Award,
