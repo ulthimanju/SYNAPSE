@@ -6,7 +6,7 @@ from shared.exceptions import NotFoundException, BadRequestException
 from ..clients.document_client import DocumentServiceClient
 from ..clients.factory import get_ai_provider
 from ..prompts.workspace_summary import WORKSPACE_SUMMARY_SYSTEM_PROMPT, build_workspace_summary_prompt
-from ..schemas.summary import WorkspaceSummaryResponse, VisualizationItem, ComparisonTable, CodeExample
+from ..schemas.summary import WorkspaceSummaryResponse
 
 logger = logging.getLogger(__name__)
 
@@ -71,74 +71,54 @@ class WorkspaceSummaryService:
         return self._synthesize_from_documents(documents)
 
     def _synthesize_from_documents(self, documents: List[dict]) -> WorkspaceSummaryResponse:
-        """Synthesizes structured summary directly from parsed Markdown headers and titles."""
-        titles = [d.get("title", "Document") for d in documents if d.get("title")]
-        main_title = f"{titles[0]} & Study Synthesis" if titles else "OOPs Knowledge Synthesis"
+        """Synthesizes structured summary dynamically from actual parsed document titles and Markdown headers.
 
-        extracted_topics = []
+        NOTE: This is a best-effort fallback when the Gemini structured call fails.
+        It reads real document content — it does NOT use any hardcoded topic text.
+        """
+        titles = [d.get("title", "") for d in documents if d.get("title")]
+        main_title = f"{titles[0]} & Study Synthesis" if titles else "Workspace Knowledge Synthesis"
+
+        extracted_topics: List[str] = []
         full_text = ""
         for d in documents:
             markdown = d.get("markdown", "")
             full_text += markdown + "\n"
             for line in markdown.splitlines():
                 line_str = line.strip()
+                # Extract H1/H2/H3 headings as topics
                 if line_str.startswith("#") and len(line_str) > 2:
                     topic = line_str.lstrip("#").strip()
-                    if topic and topic not in extracted_topics and len(topic) < 60:
+                    if topic and topic not in extracted_topics and 3 < len(topic) < 80:
                         extracted_topics.append(topic)
-                        if len(extracted_topics) >= 6:
+                        if len(extracted_topics) >= 8:
                             break
-
-        if not extracted_topics:
-            extracted_topics = [
-                "Object-Oriented Programming (OOP)",
-                "Abstraction & Encapsulation",
-                "Inheritance & Polymorphism",
-                "Java OOP Implementation",
-            ]
 
         doc_count = len(documents)
         char_count = len(full_text)
+        doc_titles_str = ", ".join(titles[:3]) if titles else "workspace documents"
+        topic_summary = ", ".join(extracted_topics[:4]) if extracted_topics else "the topics covered in this workspace"
+
         overview = (
             f"# Introduction\n\n"
-            f"This comprehensive executive summary unifies research across {doc_count} workspace document(s) comprising {char_count:,} characters of study material.\n\n"
+            f"This executive summary unifies {doc_count} workspace document(s) totalling {char_count:,} characters of study material, "
+            f"sourced from: {doc_titles_str}.\n\n"
             f"# Executive Overview\n\n"
-            f"Object-Oriented Programming (OOP) models software systems using autonomous objects encapsulating state and behavior. Key covered topics include {', '.join(extracted_topics[:4])}.\n\n"
-            f"# Concept Relationships\n\n"
-            f"Classes serve as structural blueprints, while objects represent memory instantiations executing methods and inheritance hierarchies.\n\n"
+            f"The workspace covers {topic_summary}. "
+            f"Each document contributes unique perspectives on these areas, forming a cohesive knowledge base.\n\n"
+            f"# Key Themes\n\n"
+            f"The primary themes identified across all documents include: {', '.join(extracted_topics[:6]) if extracted_topics else 'See document titles above'}.\n\n"
             f"# Key Takeaways\n\n"
-            f"Mastering core OOP pillars, design tradeoffs, and execution mechanics is fundamental for scalable software design."
+            f"Systematic study of this workspace will build a thorough understanding of {topic_summary}."
         )
 
         return WorkspaceSummaryResponse(
             title=main_title,
             overview=overview,
-            visualizations=[
-                VisualizationItem(
-                    type="mermaid",
-                    title="Core OOP Pillars Mindmap",
-                    content="graph TD\n  OOP[Object-Oriented Programming]\n  OOP --> Encapsulation[Encapsulation]\n  OOP --> Abstraction[Abstraction]\n  OOP --> Inheritance[Inheritance]\n  OOP --> Polymorphism[Polymorphism]"
-                )
-            ],
-            comparison_tables=[
-                ComparisonTable(
-                    title="Interface vs Abstract Class",
-                    headers=["Feature", "Interface", "Abstract Class"],
-                    rows=[
-                        ["Inheritance", "Multiple Interface Implementation", "Single Class Extension"],
-                        ["State", "No instance fields (constants only)", "Can hold state (instance variables)"],
-                        ["Methods", "Abstract & Default methods", "Abstract & Concrete methods"]
-                    ]
-                )
-            ],
-            code_examples=[
-                CodeExample(
-                    language="java",
-                    title="Inheritance & Polymorphism Example",
-                    code="public class Animal {\n    public void makeSound() {\n        System.out.println(\"Generic Animal Sound\");\n    }\n}"
-                )
-            ],
-            key_topics=extracted_topics[:6],
+            visualizations=[],
+            comparison_tables=[],
+            code_examples=[],
+            key_topics=extracted_topics[:8],
             difficulty="Intermediate",
             estimated_study_time=f"{max(3, doc_count * 2)} hours",
         )

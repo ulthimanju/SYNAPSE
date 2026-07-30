@@ -171,8 +171,15 @@ IMPORTANT RULES
 - Return ONLY valid JSON.
 """
 
-def build_learning_path_prompt(summary: dict) -> str:
-    """Formats full workspace summary payload into prompt for Knowledge Graph Curriculum generation."""
+def build_learning_path_prompt(summary: dict, documents: list = None) -> str:
+    """Formats full workspace summary + raw parsed document excerpts into the Knowledge Graph prompt.
+
+    Args:
+        summary: Workspace executive summary dict fetched from workspace-service.
+        documents: Optional list of parsed document dicts fetched from document-service.
+                   Each dict has 'title' and 'markdown' keys.
+                   Provides grounding context when summary is empty or not yet generated.
+    """
     title = summary.get("title", "Workspace Knowledge Base")
     overview = summary.get("overview", "")
     topics = ", ".join(summary.get("key_topics", []))
@@ -188,19 +195,46 @@ def build_learning_path_prompt(summary: dict) -> str:
     code_examples = summary.get("code_examples", [])
     code_text = "\n".join([f"- {c.get('title')} ({c.get('language')}):\n{c.get('code')}" for c in code_examples]) if code_examples else "None"
 
-    return f"""You are provided with a complete Workspace Executive Summary generated from multiple source documents.
+    # Build raw document grounding section (first 3000 chars per doc, max 3 docs)
+    raw_docs_section = ""
+    if documents:
+        doc_excerpts = []
+        for doc in documents[:5]:
+            doc_title = doc.get("title", "Untitled Document")
+            markdown = doc.get("markdown", "")
+            # Take first 3000 chars as a representative excerpt
+            excerpt = markdown[:3000].strip()
+            if excerpt:
+                doc_excerpts.append(f"### Document: {doc_title}\n\n{excerpt}\n\n[... truncated ...]")
+        if doc_excerpts:
+            raw_docs_section = f"""
+=========================
+RAW DOCUMENT CONTENT (Primary Source)
+=========================
+
+The following are direct excerpts from the parsed workspace documents.
+Use this as the primary grounding context for the knowledge graph.
+
+{"=" * 60 + chr(10)}
+{(chr(10) + "=" * 60 + chr(10)).join(doc_excerpts)}
+"""
+
+    has_summary_content = bool(overview.strip() or topics.strip())
+    summary_label = "WORKSPACE EXECUTIVE SUMMARY" if has_summary_content else "WORKSPACE METADATA (Summary not yet generated)"
+
+    return f"""You are provided with the workspace knowledge base from multiple source documents.
 
 =========================
-WORKSPACE SUMMARY KNOWLEDGE BASE
+{summary_label}
 =========================
 
 Title: {title}
 Overall Difficulty: {difficulty}
 Estimated Study Time: {study_time}
-Key Topics: {topics}
+Key Topics: {topics if topics else "See raw document content below"}
 
 Executive Summary & Synthesis:
-{overview}
+{overview if overview else "Not yet generated. Use raw document content below as primary source."}
 
 Visualizations & Diagrams:
 {vis_text}
@@ -210,12 +244,15 @@ Comparative Analysis Tables:
 
 Code Implementation Examples:
 {code_text}
-
+{raw_docs_section}
 =========================
 YOUR TASK
 =========================
 
 Transform this workspace into a textbook-grade Hierarchical Knowledge Graph and derived Role-Based Learning Paths.
+
+IMPORTANT: The knowledge graph MUST be derived EXCLUSIVELY from the actual content provided above.
+Do NOT generate generic content. Every domain, module, concept, and lesson must come from the documents above.
 
 Do NOT summarize.
 

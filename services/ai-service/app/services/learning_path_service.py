@@ -4,6 +4,7 @@ import logging
 from typing import Optional, List, Dict, Any
 from shared.exceptions import NotFoundException
 from ..clients.workspace_client import WorkspaceServiceClient
+from ..clients.document_client import DocumentServiceClient
 from ..clients.factory import get_ai_provider
 from ..prompts.learning_path import LEARNING_PATH_SYSTEM_PROMPT, build_learning_path_prompt
 from ..schemas.learning_path import (
@@ -21,18 +22,46 @@ class LearningPathService:
     def __init__(
         self,
         ws_client: Optional[WorkspaceServiceClient] = None,
+        doc_client: Optional[DocumentServiceClient] = None,
         ai_provider=None
     ):
         self.ws_client = ws_client or WorkspaceServiceClient()
+        self.doc_client = doc_client or DocumentServiceClient()
         self.ai_provider = ai_provider or get_ai_provider()
 
     async def generate_learning_path(self, workspace_id: str) -> LearningPathResponse:
-        """Retrieves full workspace summary payload, calls Gemini Direct Engine, and returns Knowledge Graph and Role Learning Paths."""
-        summary = await self.ws_client.get_workspace_summary(workspace_id)
-        if not summary:
-            raise NotFoundException(f"No summary available for workspace {workspace_id}")
+        """Retrieves workspace summary + parsed documents, calls Gemini, returns Knowledge Graph and Role Learning Paths.
 
-        prompt = build_learning_path_prompt(summary)
+        Context assembly strategy (dual-source for robustness):
+        1. Fetch workspace executive summary from workspace-service (may be empty if not yet generated).
+        2. Fetch raw parsed document Markdown from document-service (always available after parsing).
+        3. Combine both into the prompt — documents are the primary grounding source.
+        4. Raise NotFoundException only if both sources are completely empty.
+        """
+        # Source 1: Workspace executive summary (structured)
+        summary = await self.ws_client.get_workspace_summary(workspace_id)
+
+        # Source 2: Raw parsed documents (primary grounding — always available post-parse)
+        documents: List[Dict[str, Any]] = []
+        try:
+            documents = await self.doc_client.get_parsed_documents(workspace_id)
+        except NotFoundException:
+            logger.warning(f"No parsed documents found for workspace {workspace_id}.")
+        except Exception as exc:
+            logger.warning(f"Could not fetch parsed documents for workspace {workspace_id}: {exc}")
+
+        if not summary and not documents:
+            raise NotFoundException(
+                f"No workspace content available for workspace {workspace_id}. "
+                f"Ensure documents are uploaded and parsed before generating a learning path."
+            )
+
+        logger.info(
+            f"Learning path context: summary_has_content={bool(summary.get('overview'))}, "
+            f"documents_count={len(documents)}, workspace_id={workspace_id}"
+        )
+
+        prompt = build_learning_path_prompt(summary, documents=documents)
 
         raw_json_str = await self.ai_provider.generate_structured(
             prompt=prompt,
