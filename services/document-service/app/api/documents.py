@@ -112,13 +112,23 @@ async def get_internal_chunks_by_ids(
     repo = ChunkRepository()
     chunks = await repo.get_chunks_by_ids(chunk_ids)
     
-    data = [
-        {
+    from ..models.document import Document
+    doc_cache = {}
+    
+    data = []
+    for c in chunks:
+        doc_name = "Document"
+        if c.document_id:
+            if c.document_id not in doc_cache:
+                parent_doc = await Document.get(c.document_id)
+                doc_cache[c.document_id] = parent_doc.filename if parent_doc else "Document"
+            doc_name = doc_cache[c.document_id]
+            
+        data.append({
             "chunk_id": str(c.id),
             "document_id": c.document_id,
+            "filename": doc_name,
             "content": c.content,
             "metadata": c.metadata or {},
-        }
-        for c in chunks
-    ]
+        })
     return APIResponse(message="Internal chunk contents retrieved.", data=data)

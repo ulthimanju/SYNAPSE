@@ -12,12 +12,15 @@ export const SourceList = ({ sources = [] }) => {
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
         {sources.map((src, idx) => {
-          const scorePct = Math.round((src.score || 0.9) * 100);
+          const scorePct = isNaN(src.score) || !src.score ? 90 : Math.round(src.score * 100);
+          const rawTitle = src.filename || src.heading || `Document ${src.document_id || idx + 1}`;
+          const cleanTitle = rawTitle.startsWith('/') ? (src.filename || 'Document') : rawTitle;
+
           return (
             <Badge key={idx} variant="outline" style={{ fontSize: '0.75rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                 <FileText size={10} style={{ color: 'var(--accent-amber)' }} />
-                <span>{src.heading || `Chunk ${src.chunk_id}`}</span>
+                <span>{cleanTitle}</span>
                 <span style={{ opacity: 0.6 }}>({scorePct}%)</span>
               </div>
             </Badge>

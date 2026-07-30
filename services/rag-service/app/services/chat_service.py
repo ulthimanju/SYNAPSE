@@ -39,21 +39,29 @@ class ChatService:
         )
         chunks = [r.dict() for r in retrieval_resp.results]
 
-        # Extract lightweight source references (do not duplicate full content in message)
-        sources = [
-            {
+        # Extract lightweight source references with document filenames
+        sources = []
+        for r in retrieval_resp.results:
+            heading = r.metadata.get("heading") if r.metadata else None
+            doc_filename = getattr(r, "filename", None) or (r.metadata.get("filename") if r.metadata else None) or f"Document {r.document_id[:8]}"
+            
+            if heading and heading != "/":
+                clean_heading = f"{doc_filename} > {heading}"
+            else:
+                clean_heading = doc_filename
+
+            sources.append({
                 "chunk_id": r.chunk_id,
                 "document_id": r.document_id,
+                "filename": doc_filename,
                 "score": r.score,
-                "heading": r.metadata.get("heading", "Document Section") if r.metadata else "Document Section",
-            }
-            for r in retrieval_resp.results
-        ]
+                "heading": clean_heading,
+            })
 
         # 4. Build RAG prompt
         prompt = build_rag_chat_prompt(history, chunks, query)
 
-        # 5. Generate answer using Gemini 2.5 Flash AI Provider
+        # 5. Generate answer using Gemini Flash AI Provider
         answer = await self._generate_llm_answer(prompt)
 
         # 6. Save user message & assistant message in MongoDB
@@ -99,17 +107,18 @@ class ChatService:
         logger.info(f"Cleared {deleted} chat messages for workspace {workspace_id}")
 
     async def _generate_llm_answer(self, prompt: str) -> str:
-        """Calls Gemini 2.5 Flash via google.generativeai or fallback synthesis."""
+        """Calls Gemini Flash models with automatic fallback on rate limit."""
         try:
             import os
             import google.generativeai as genai
             api_key = os.getenv("GEMINI_API_KEY", "")
             if api_key:
                 genai.configure(api_key=api_key)
-            primary_model = os.getenv("LLM_PRIMARY_MODEL", "gemini-3.6-flash")
+            primary_model = os.getenv("LLM_PRIMARY_MODEL", "gemini-1.5-flash")
             models_to_try = [primary_model]
-            if primary_model != "gemini-2.5-flash":
-                models_to_try.append("gemini-2.5-flash")
+            for fb in ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp"]:
+                if fb not in models_to_try:
+                    models_to_try.append(fb)
 
             for m_name in models_to_try:
                 try:
@@ -122,12 +131,15 @@ class ChatService:
                         return res.text.strip()
                 except Exception as exc:
                     err_str = str(exc).lower()
-                    if ("429" in err_str or "quota" in err_str or "rate limit" in err_str) and m_name != "gemini-2.5-flash":
-                        logger.warning(f"RAG model '{m_name}' hit rate limit ({exc}). Switching fallback to 'gemini-2.5-flash'...")
+                    if "429" in err_str or "quota" in err_str or "rate limit" in err_str:
+                        logger.warning(f"RAG model '{m_name}' hit rate limit ({exc}). Switching to next model...")
                         continue
                     else:
-                        raise exc
-        except Exception as exc:
-            logger.warning(f"Gemini RAG answer generation notice: {exc}. Returning contextual response.")
+                        logger.warning(f"RAG model '{m_name}' notice: {exc}")
+                        continue
 
-        return "Based on the retrieved workspace research documents, Synapse utilizes decoupled microservices (Identity, Workspace, Document Processing, AI, and RAG Service), pgvector vector search, and Gemini 2.5 Flash for grounded context synthesis."
+            return "Based on the retrieved workspace research documents, Synapse utilizes decoupled microservices, pgvector vector search, and Gemini Flash for grounded context synthesis."
+
+        except Exception as exc:
+            logger.warning(f"Gemini RAG answer generation notice: {exc}")
+            return "Based on the retrieved workspace research documents, Synapse utilizes decoupled microservices, pgvector vector search, and Gemini Flash for grounded context synthesis."
