@@ -390,11 +390,18 @@ async def get_or_generate_unit_content(
     unit_title = f"Unit {unit_id}"
     topics = []
     objectives = []
-    if lp and lp.units:
-        for u in lp.units:
-            if str(u.get("id")) == str(unit_id):
+
+    if lp:
+        nodes = []
+        if isinstance(lp.knowledge_graph, dict) and "nodes" in lp.knowledge_graph:
+            nodes.extend(lp.knowledge_graph["nodes"])
+        if lp.units:
+            nodes.extend(lp.units)
+
+        for u in nodes:
+            if isinstance(u, dict) and str(u.get("id")) == str(unit_id):
                 unit_title = u.get("title", unit_title)
-                topics = u.get("topics", [])
+                topics = u.get("keywords") or u.get("topics", [])
                 objectives = u.get("learning_objectives", [])
                 break
 
@@ -406,8 +413,10 @@ async def get_or_generate_unit_content(
         "flashcards": [],
         "quiz": {"title": f"{unit_title} Quiz", "questions": []}
     }
+    is_successfully_generated = False
+
     try:
-        async with httpx.AsyncClient(timeout=35.0) as client:
+        async with httpx.AsyncClient(timeout=45.0) as client:
             res = await client.post(
                 f"{ai_service_url}/learning-unit-content",
                 json={
@@ -419,23 +428,27 @@ async def get_or_generate_unit_content(
                 }
             )
             if res.status_code == 200:
-                unit_content = res.json().get("data", unit_content)
+                payload = res.json().get("data", {})
+                if payload:
+                    unit_content = payload
+                    is_successfully_generated = True
     except Exception as exc:
         pass
 
-    # 4. Store Learning Unit into MongoDB
-    saved = LearningUnitContent(
-        workspace_id=workspace_id,
-        unit_id=unit_id,
-        unit_title=unit_title,
-        unit_summary=unit_content.get("unit_summary", ""),
-        flashcards=unit_content.get("flashcards", []),
-        quiz=unit_content.get("quiz", {}),
-    )
-    try:
-        await saved.insert()
-    except Exception:
-        pass
+    # 4. Store Learning Unit into MongoDB only if generated successfully
+    if is_successfully_generated:
+        saved = LearningUnitContent(
+            workspace_id=workspace_id,
+            unit_id=unit_id,
+            unit_title=unit_title,
+            unit_summary=unit_content.get("unit_summary", ""),
+            flashcards=unit_content.get("flashcards", []),
+            quiz=unit_content.get("quiz", {}),
+        )
+        try:
+            await saved.insert()
+        except Exception:
+            pass
 
     # 5. Return Content
     return APIResponse(
