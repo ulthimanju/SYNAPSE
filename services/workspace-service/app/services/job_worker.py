@@ -195,6 +195,17 @@ class AIJobWorker:
                     pass
             await self._update_step(job, "Store Summary", "completed", 100)
 
+            # Auto-chain: Generate Workspace Summary -> Generate Learning Path -> Workspace Ready
+            try:
+                existing_lp = await LearningPath.find_one({"workspace_id": ws_id}) if hasattr(LearningPath, "find_one") else None
+                if not existing_lp:
+                    logger.info(f"Auto-chaining Learning Path generation for workspace {ws_id}")
+                    lp_job = GenerationJob(workspace_id=ws_id, job_type="LEARNING_PATH", status="QUEUED")
+                    await lp_job.insert()
+                    asyncio.create_task(self.execute_job(str(lp_job.id)))
+            except Exception as exc:
+                logger.warning(f"Auto-chaining notice: {exc}")
+
         elif job.job_type == "LEARNING_PATH":
             lp_data = {
                 "title": "Mastery Path: Distributed Systems Architecture",

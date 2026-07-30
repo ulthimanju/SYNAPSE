@@ -8,6 +8,7 @@ from .models.workspace import Workspace
 from .models.membership import Membership
 from .models.workspace_summary import WorkspaceSummary
 from .models.learning_path import LearningPath
+from .models.learning_unit_content import LearningUnitContent
 from .models.flashcard import Flashcard
 from .models.quiz import Quiz
 from .models.generation_job import GenerationJob
@@ -17,28 +18,26 @@ logger = get_logger("workspace-service")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for Workspace Service startup and shutdown events."""
-    # 1. Startup: Initialize Logging
     initialize_logging(service_name="workspace-service")
     logger.info(f"Starting workspace-service (environment: {settings.environment})...")
 
-    # 2. Connection & Beanie Initialization
     try:
         await init_mongo_beanie(document_models=[
             Workspace,
             Membership,
             WorkspaceSummary,
             LearningPath,
+            LearningUnitContent,
             Flashcard,
             Quiz,
             GenerationJob,
         ])
-        logger.info(f"MongoDB/Beanie initialized with Workspace, Membership, WorkspaceSummary, LearningPath, Flashcard, Quiz & GenerationJob models ({settings.mongodb.db_name})")
+        logger.info(f"MongoDB/Beanie initialized with Workspace, Membership, WorkspaceSummary, LearningPath, LearningUnitContent, Flashcard, Quiz & GenerationJob models ({settings.mongodb.db_name})")
     except Exception as exc:
         logger.warning(f"MongoDB connection warning during startup: {exc}")
 
     yield
 
-    # 3. Shutdown: Close Motor client connection
     logger.info("Shutting down workspace-service...")
     mongodb_manager.close()
     logger.info("workspace-service shutdown complete.")

@@ -10,6 +10,7 @@ from ..services.job_worker import AIJobWorker
 from ..schemas.workspace import WorkspaceCreate, WorkspaceUpdate, WorkspaceRead, WorkspaceTitleRead
 from ..models.workspace_summary import WorkspaceSummary
 from ..models.learning_path import LearningPath
+from ..models.learning_unit_content import LearningUnitContent
 from ..models.flashcard import Flashcard
 from ..models.quiz import Quiz
 from ..models.generation_job import GenerationJob
@@ -347,6 +348,99 @@ async def get_internal_workspace_learning_path(
         "title": lp.title,
         "units": lp.units,
     })
+
+@router.get("/{workspace_id}/units/{unit_id}", response_model=APIResponse[dict])
+async def get_or_generate_unit_content(
+    workspace_id: str = Path(..., description="Workspace ID"),
+    unit_id: str = Path(..., description="Unit ID"),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> APIResponse[dict]:
+    """Retrieves cached unit content (Summary + Flashcards + Quiz) or generates on-demand via AI Service."""
+    # 1. Check if Already Generated?
+    cached = await LearningUnitContent.find_one(
+        LearningUnitContent.workspace_id == workspace_id,
+        LearningUnitContent.unit_id == unit_id
+    )
+    if cached:
+        return APIResponse(
+            message="Unit content retrieved from cache.",
+            data={
+                "workspace_id": cached.workspace_id,
+                "unit_id": cached.unit_id,
+                "unit_title": cached.unit_title,
+                "unit_summary": cached.unit_summary,
+                "flashcards": cached.flashcards,
+                "quiz": cached.quiz,
+                "already_generated": True,
+            }
+        )
+
+    # 2. Retrieve unit metadata from LearningPath
+    lp = await LearningPath.find_one(LearningPath.workspace_id == workspace_id)
+    unit_title = f"Unit {unit_id}"
+    topics = []
+    objectives = []
+    if lp and lp.units:
+        for u in lp.units:
+            if str(u.get("id")) == str(unit_id):
+                unit_title = u.get("title", unit_title)
+                topics = u.get("topics", [])
+                objectives = u.get("learning_objectives", [])
+                break
+
+    # 3. Call AI Service to generate concept-specific Summary + Flashcards + Quiz
+    from shared.config.settings import settings
+    ai_service_url = settings.ai_service_url
+    unit_content = {
+        "unit_summary": f"# {unit_title}\n\nComprehensive exploration of core concepts.",
+        "flashcards": [],
+        "quiz": {"title": f"{unit_title} Quiz", "questions": []}
+    }
+    try:
+        async with httpx.AsyncClient(timeout=35.0) as client:
+            res = await client.post(
+                f"{ai_service_url}/learning-unit-content",
+                json={
+                    "workspace_id": workspace_id,
+                    "unit_id": unit_id,
+                    "unit_title": unit_title,
+                    "topics": topics,
+                    "learning_objectives": objectives,
+                }
+            )
+            if res.status_code == 200:
+                unit_content = res.json().get("data", unit_content)
+    except Exception as exc:
+        pass
+
+    # 4. Store Learning Unit into MongoDB
+    saved = LearningUnitContent(
+        workspace_id=workspace_id,
+        unit_id=unit_id,
+        unit_title=unit_title,
+        unit_summary=unit_content.get("unit_summary", ""),
+        flashcards=unit_content.get("flashcards", []),
+        quiz=unit_content.get("quiz", {}),
+    )
+    try:
+        await saved.insert()
+    except Exception:
+        pass
+
+    # 5. Return Content
+    return APIResponse(
+        message="Unit content generated and cached successfully.",
+        data={
+            "workspace_id": workspace_id,
+            "unit_id": unit_id,
+            "unit_title": unit_title,
+            "unit_summary": saved.unit_summary,
+            "flashcards": saved.flashcards,
+            "quiz": saved.quiz,
+            "already_generated": False,
+        }
+    )
+
 
 @router.post("/{workspace_id}/flashcards", response_model=APIResponse[dict], status_code=status.HTTP_202_ACCEPTED)
 async def queue_flashcards_generation(

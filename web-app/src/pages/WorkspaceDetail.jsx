@@ -407,6 +407,7 @@ export const WorkspaceDetail = () => {
             {learningPath ? (
               <LearningPathView
                 learningPath={learningPath}
+                workspaceId={workspaceId}
                 onRegenerate={handleQueueLearningPath}
               />
             ) : (

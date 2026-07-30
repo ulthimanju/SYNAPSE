@@ -4,8 +4,10 @@ import { Button } from '../common/Button';
 import { LearningUnitCard } from './LearningUnitCard';
 import { BookOpen, RefreshCw } from 'lucide-react';
 
-export const LearningPathView = ({ learningPath, onRegenerate, loading = false }) => {
+export const LearningPathView = ({ learningPath, onRegenerate, loading = false, workspaceId }) => {
   if (!learningPath || !learningPath.units || learningPath.units.length === 0) return null;
+
+  const targetWsId = workspaceId || learningPath.workspace_id;
 
   return (
     <div>
@@ -25,7 +27,7 @@ export const LearningPathView = ({ learningPath, onRegenerate, loading = false }
 
       <div>
         {learningPath.units.map((unit, idx) => (
-          <LearningUnitCard key={unit.id || idx} unit={unit} index={idx} />
+          <LearningUnitCard key={unit.id || idx} unit={unit} index={idx} workspaceId={targetWsId} />
         ))}
       </div>
     </div>
