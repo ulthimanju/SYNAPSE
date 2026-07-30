@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import { Alert } from '../components/feedback/Alert';
+import { MarkdownRenderer } from '../components/common/MarkdownRenderer';
 import { api } from '../services/api';
 import {
   ArrowLeft,
@@ -248,12 +249,7 @@ export const LearningUnitDetail = () => {
             {/* TAB CONTENT: SUMMARY */}
             {activeTab === 'summary' && (
               <Card style={{ padding: '2rem' }}>
-                <h2 className="font-serif" style={{ fontSize: '1.35rem', color: 'var(--text-primary)', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-                  Executive Unit Summary & Analysis
-                </h2>
-                <div style={{ lineHeight: 1.8, fontSize: '0.95rem', color: 'var(--text-secondary)', whiteSpace: 'pre-line' }}>
-                  {unitContent?.unit_summary || 'No summary text available.'}
-                </div>
+                <MarkdownRenderer content={unitContent?.unit_summary} />
               </Card>
             )}
 
