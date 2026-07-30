@@ -1,7 +1,7 @@
 import logging
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from shared.database import postgres_manager
+from shared.database import vectors_postgres_manager
 from ..repositories.document_repository import DocumentRepository
 from ..repositories.chunk_repository import ChunkRepository
 from ..repositories.embedding_repository import EmbeddingRepository
@@ -63,12 +63,10 @@ class EmbeddingService:
                 for i in range(len(chunks))
             ]
 
-            # 4. Save to PostgreSQL if DB session available
-            try:
-                async with postgres_manager.session_factory() as session:
-                    await self.embedding_repo.save_chunk_embeddings(session, embedding_records)
-            except Exception as pg_exc:
-                logger.warning(f"PostgreSQL pgvector persistence notice (local dev mode): {pg_exc}")
+            # 4. Save to PostgreSQL pgvector
+            async with vectors_postgres_manager.session_factory() as session:
+                await self.embedding_repo.save_chunk_embeddings(session, embedding_records)
+            logger.info(f"Persisted {len(embedding_records)} vector embeddings into pgvector for doc {document_id}")
 
             # 5. Update document status to 'ready', stage to 'complete'
             await self.doc_repo.update_status(
