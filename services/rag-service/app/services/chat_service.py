@@ -61,8 +61,8 @@ class ChatService:
         # 4. Build RAG prompt
         prompt = build_rag_chat_prompt(history, chunks, query)
 
-        # 5. Generate answer using Gemini Flash AI Provider
-        answer = await self._generate_llm_answer(prompt)
+        # 5. Generate answer using Gemini Flash AI Provider with grounded chunk synthesis fallback
+        answer = await self._generate_llm_answer(prompt, chunks)
 
         # 6. Save user message & assistant message in MongoDB
         await self.msg_repo.add_message(
@@ -106,19 +106,21 @@ class ChatService:
         deleted = await self.msg_repo.delete_conversation_messages(conv_id)
         logger.info(f"Cleared {deleted} chat messages for workspace {workspace_id}")
 
-    async def _generate_llm_answer(self, prompt: str) -> str:
-        """Calls Gemini Flash models with automatic fallback on rate limit."""
+    async def _generate_llm_answer(self, prompt: str, chunks: Optional[List[Dict[str, Any]]] = None) -> str:
+        """Calls Gemini Flash models with grounded chunk text synthesis fallback on rate limit."""
         try:
             import os
             import google.generativeai as genai
             api_key = os.getenv("GEMINI_API_KEY", "")
             if api_key:
                 genai.configure(api_key=api_key)
-            primary_model = os.getenv("LLM_PRIMARY_MODEL", "gemini-1.5-flash")
-            models_to_try = [primary_model]
-            for fb in ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp"]:
-                if fb not in models_to_try:
-                    models_to_try.append(fb)
+            primary_model = os.getenv("LLM_PRIMARY_MODEL", "models/gemini-3.6-flash")
+            raw_models = [primary_model, "models/gemini-3.6-flash", "models/gemini-3.5-flash", "models/gemini-2.5-flash", "models/gemini-2.0-flash", "models/gemini-flash-latest"]
+            models_to_try = []
+            for rm in raw_models:
+                m_name = rm if rm.startswith("models/") else f"models/{rm}"
+                if m_name not in models_to_try:
+                    models_to_try.append(m_name)
 
             for m_name in models_to_try:
                 try:
@@ -138,8 +140,30 @@ class ChatService:
                         logger.warning(f"RAG model '{m_name}' notice: {exc}")
                         continue
 
-            return "Based on the retrieved workspace research documents, Synapse utilizes decoupled microservices, pgvector vector search, and Gemini Flash for grounded context synthesis."
+            # Fallback: Extract and synthesize answer directly from retrieved vector chunks
+            return self._synthesize_fallback_from_chunks(chunks)
 
         except Exception as exc:
             logger.warning(f"Gemini RAG answer generation notice: {exc}")
-            return "Based on the retrieved workspace research documents, Synapse utilizes decoupled microservices, pgvector vector search, and Gemini Flash for grounded context synthesis."
+            return self._synthesize_fallback_from_chunks(chunks)
+
+    def _synthesize_fallback_from_chunks(self, chunks: Optional[List[Dict[str, Any]]]) -> str:
+        """Extracts and formats grounded text directly from retrieved document chunks when AI models are rate limited."""
+        if not chunks:
+            return "Based on your uploaded workspace documents, no specific matching sections were found for this query."
+        
+        valid_chunks = [c for c in chunks if c.get("content") and not c.get("content").startswith("Retrieved vector chunk")]
+        if not valid_chunks:
+            valid_chunks = chunks
+
+        extracted_texts = []
+        for c in valid_chunks[:3]:
+            content = c.get("content", "").strip()
+            if content:
+                extracted_texts.append(content)
+
+        if not extracted_texts:
+            return "Based on your uploaded workspace documents, no matching text passages were retrieved."
+
+        combined = "\n\n".join(extracted_texts[:2])
+        return f"Based on your uploaded workspace research documents:\n\n{combined}"
