@@ -49,17 +49,13 @@ export const WorkspaceSwitcher = () => {
   }, []);
 
   useEffect(() => {
-    if (location.pathname === '/collaborations') {
+    const current = workspaces.find((w) => w.id === activeWorkspaceId);
+    if (current && (current.is_owner === false || current.role === 'collaborator')) {
       setSwitcherTab('collaborated');
     } else {
-      const current = workspaces.find((w) => w.id === activeWorkspaceId);
-      if (current && (current.is_owner === false || current.role === 'collaborator')) {
-        setSwitcherTab('collaborated');
-      } else {
-        setSwitcherTab('owned');
-      }
+      setSwitcherTab('owned');
     }
-  }, [location.pathname, activeWorkspaceId, workspaces]);
+  }, [activeWorkspaceId, workspaces]);
 
   const handleSelectWorkspace = (wsId) => {
     setActiveWorkspaceId(wsId);

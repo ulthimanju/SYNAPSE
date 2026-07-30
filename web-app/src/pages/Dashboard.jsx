@@ -45,14 +45,9 @@ export const Dashboard = () => {
             <h1 style={{ fontSize: '2rem' }}>Dashboard Overview</h1>
             <p style={{ color: 'var(--text-secondary)' }}>Welcome to Synapse workspace intelligence hub</p>
           </div>
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <Button variant="outline" onClick={() => navigate('/collaborations')}>
-              <Users size={16} /> Collaborated Workspaces ({collaboratedWorkspaces.length})
-            </Button>
-            <Button onClick={() => navigate(ownedWorkspaces.length ? `/workspaces/${ownedWorkspaces[0].id}` : '/workspaces')}>
-              <Plus size={16} /> Manage Owned Workspaces
-            </Button>
-          </div>
+          <Button onClick={() => navigate(ownedWorkspaces.length ? `/workspaces/${ownedWorkspaces[0].id}` : '/workspaces')}>
+            <Plus size={16} /> Manage Workspaces
+          </Button>
         </div>
 
         {/* Metrics Grid */}

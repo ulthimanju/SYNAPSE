@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAppStore } from '../../stores/appStore';
 import { useThemeStore } from '../../stores/themeStore';
-import { LayoutDashboard, FolderKanban, Users, Sun, Moon } from 'lucide-react';
+import { LayoutDashboard, FolderKanban, Sun, Moon } from 'lucide-react';
 import { UserMenu } from './UserMenu';
 
 export const SideNavigation = () => {
@@ -14,8 +14,7 @@ export const SideNavigation = () => {
 
   const navItems = [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { label: 'Owned Workspaces', path: workspacePath, icon: FolderKanban },
-    { label: 'Collaborated Workspaces', path: '/collaborations', icon: Users },
+    { label: 'Workspaces', path: workspacePath, icon: FolderKanban },
   ];
 
   if (!sidebarOpen) return null;
@@ -45,10 +44,8 @@ export const SideNavigation = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
           {navItems.map((item) => {
             const Icon = item.icon;
-            const active = item.path === '/collaborations'
-              ? location.pathname === '/collaborations'
-              : location.pathname.startsWith('/workspaces')
-              ? item.label === 'Owned Workspaces'
+            const active = location.pathname.startsWith('/workspaces')
+              ? item.label === 'Workspaces'
               : location.pathname === item.path;
             return (
               <Link

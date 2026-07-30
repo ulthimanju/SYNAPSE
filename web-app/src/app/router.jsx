@@ -5,7 +5,6 @@ import { Login } from '../pages/Login';
 import { OAuthCallback } from '../pages/OAuthCallback';
 import { Dashboard } from '../pages/Dashboard';
 import { WorkspaceDetail } from '../pages/WorkspaceDetail';
-import { CollaboratedWorkspaces } from '../pages/CollaboratedWorkspaces';
 import { LearningUnitDetail } from '../pages/LearningUnitDetail';
 import { NotFound } from '../pages/NotFound';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
@@ -32,14 +31,6 @@ export const AppRouter = () => {
           element={
             <ProtectedRoute>
               <Navigate to="/dashboard" replace />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/collaborations"
-          element={
-            <ProtectedRoute>
-              <CollaboratedWorkspaces />
             </ProtectedRoute>
           }
         />
