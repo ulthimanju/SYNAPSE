@@ -53,10 +53,6 @@ export const MessageBubble = ({ message }) => {
           ) : (
             <MarkdownRenderer content={message.content} />
           )}
-
-          {!isUser && message.sources && message.sources.length > 0 && (
-            <SourceList sources={message.sources} />
-          )}
         </div>
       </div>
     </div>
