@@ -12,10 +12,10 @@ class BaseEmbeddingClient(ABC):
         pass
 
 class GeminiEmbeddingClient(BaseEmbeddingClient):
-    """Gemini Embedding Client generating 768-dim float vectors using text-embedding-004."""
-    def __init__(self, api_key: str = None, model: str = "models/text-embedding-004"):
+    """Gemini Embedding Client generating vectors using models/gemini-embedding-001."""
+    def __init__(self, api_key: str = None, model: str = None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY", "")
-        self.model = model
+        self.model = model or os.getenv("EMBEDDING_MODEL", "models/gemini-embedding-001")
 
     async def get_embedding(self, text: str) -> List[float]:
         if not text:

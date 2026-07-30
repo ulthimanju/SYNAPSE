@@ -8,6 +8,8 @@ from ..events.publisher import EventPublisher
 from ..schemas.parsed_document import ParsedDocumentRead
 from ..schemas.enums import DocumentStatus
 
+from ..storage.gdrive_service import GoogleDriveStorageService
+
 logger = logging.getLogger(__name__)
 
 class ParserService:
@@ -17,13 +19,13 @@ class ParserService:
         self,
         doc_repo: Optional[DocumentRepository] = None,
         parsed_doc_repo: Optional[ParsedDocumentRepository] = None,
-        storage_service: Optional[MinIOStorageService] = None,
+        storage_service: Optional[GoogleDriveStorageService] = None,
         llama_client: Optional[LlamaParseClient] = None,
         publisher: Optional[EventPublisher] = None,
     ):
         self.doc_repo = doc_repo or DocumentRepository()
         self.parsed_doc_repo = parsed_doc_repo or ParsedDocumentRepository()
-        self.storage = storage_service or MinIOStorageService()
+        self.storage = storage_service or GoogleDriveStorageService()
         self.llama_client = llama_client or LlamaParseClient()
         self.publisher = publisher or EventPublisher()
 

@@ -18,7 +18,7 @@ class GeminiEmbeddingClient(BaseEmbeddingClient):
 
     def __init__(self, api_key: str | None = None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY", os.getenv("GOOGLE_API_KEY", ""))
-        self.model_name = "models/text-embedding-004"
+        self.model_name = os.getenv("EMBEDDING_MODEL", "models/gemini-embedding-001")
 
     def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         if not texts:
