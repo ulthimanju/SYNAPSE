@@ -1,33 +1,48 @@
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
-class LearningUnit(BaseModel):
-    """Enriched schema for individual curriculum module unit."""
-    id: str = Field(..., description="Unique unit identifier (e.g. unit-1)")
-    title: str = Field(..., description="Module title")
-    description: str = Field(..., description="Detailed description (2-4 paragraphs)")
+class KnowledgeNode(BaseModel):
+    """Schema for individual node in the hierarchical knowledge graph."""
+    id: str = Field(..., description="Unique node identifier (e.g. domain-1, concept-rag)")
+    parent: Optional[str] = Field(default="", description="Parent node ID or empty string for root")
+    type: str = Field(default="concept", description="Node type: domain | module | concept | lesson")
+    title: str = Field(..., description="Node title")
+    description: str = Field(default="", description="Detailed description")
     difficulty: str = Field(default="Beginner", description="Target difficulty level")
-    estimated_time: str = Field(default="45 min", description="Estimated study time")
-    prerequisites: List[str] = Field(default_factory=list, description="Prerequisite unit IDs (e.g. unit-1)")
-    learning_objectives: List[str] = Field(default_factory=list, description="Measurable learning outcomes")
-    topics: List[str] = Field(default_factory=list, description="Specific topics covered")
-    skills_gained: List[str] = Field(default_factory=list, description="Practical skills acquired")
-    expected_outcomes: List[str] = Field(default_factory=list, description="Expected operational outcomes")
-    recommended_reading: List[str] = Field(default_factory=list, description="Recommended readings or reference material")
-    keywords: List[str] = Field(default_factory=list, description="Key concepts and search tags")
-    concept_dependencies: List[str] = Field(default_factory=list, description="Conceptual dependencies")
-    real_world_examples: List[str] = Field(default_factory=list, description="Industry and software use cases")
-    assessment_focus: List[str] = Field(default_factory=list, description="Assessment and interview evaluation areas")
-    practical_exercises: List[str] = Field(default_factory=list, description="Hands-on coding or architectural exercises")
+    estimated_time: str = Field(default="30 min", description="Estimated study time")
+    learning_objectives: List[str] = Field(default_factory=list, description="Learning objectives")
+    skills_gained: List[str] = Field(default_factory=list, description="Skills gained")
+    expected_outcomes: List[str] = Field(default_factory=list, description="Expected outcomes")
+    keywords: List[str] = Field(default_factory=list, description="Keywords")
+    recommended_reading: List[str] = Field(default_factory=list, description="Recommended readings")
+    real_world_examples: List[str] = Field(default_factory=list, description="Real world examples")
+    assessment_focus: List[str] = Field(default_factory=list, description="Assessment focus")
+    practical_exercises: List[str] = Field(default_factory=list, description="Practical exercises")
+    depends_on: List[str] = Field(default_factory=list, description="Prerequisite concept node IDs")
+    children: List[str] = Field(default_factory=list, description="Child node IDs")
+
+class KnowledgeGraph(BaseModel):
+    """Schema for complete workspace hierarchical knowledge graph."""
+    root: str = Field(default="root-workspace", description="Root node ID")
+    nodes: List[KnowledgeNode] = Field(default_factory=list, description="Hierarchical nodes")
+
+class RoleLearningPath(BaseModel):
+    """Derived role-specific learning sequence through the knowledge graph."""
+    id: str = Field(..., description="Unique path identifier (e.g. path-backend)")
+    title: str = Field(..., description="Role path title (e.g. Backend Engineer Path)")
+    description: str = Field(default="", description="Role path overview")
+    node_sequence: List[str] = Field(default_factory=list, description="Ordered sequence of node IDs")
 
 class LearningPathRequest(BaseModel):
     """Input payload requesting learning path generation."""
     workspace_id: str = Field(..., description="Target Workspace ID string")
 
 class LearningPathResponse(BaseModel):
-    """Structured response payload for learning path roadmap."""
+    """Structured response payload for hierarchical Knowledge Graph and Role-Based Learning Paths."""
     title: str = Field(..., description="Curriculum title")
-    description: str = Field(default="Comprehensive university-level curriculum.", description="Curriculum description")
-    estimated_total_time: str = Field(default="10 hours", description="Total estimated time")
+    description: str = Field(default="Textbook-grade hierarchical knowledge graph and role-based learning paths.", description="Curriculum description")
+    estimated_total_time: str = Field(default="12 hours", description="Total estimated study time")
     difficulty: str = Field(default="Intermediate", description="Overall difficulty")
-    units: List[LearningUnit] = Field(default_factory=list, description="Ordered sequence of learning units")
+    knowledge_graph: KnowledgeGraph = Field(default_factory=KnowledgeGraph, description="Hierarchical knowledge graph")
+    learning_paths: List[RoleLearningPath] = Field(default_factory=list, description="Role-based learning paths")
+    units: List[KnowledgeNode] = Field(default_factory=list, description="Flat list of graph nodes for backward compatibility")

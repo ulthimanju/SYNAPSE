@@ -1,17 +1,22 @@
 import json
 import re
 import logging
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from shared.exceptions import NotFoundException
 from ..clients.workspace_client import WorkspaceServiceClient
 from ..clients.factory import get_ai_provider
 from ..prompts.learning_path import LEARNING_PATH_SYSTEM_PROMPT, build_learning_path_prompt
-from ..schemas.learning_path import LearningPathResponse, LearningUnit
+from ..schemas.learning_path import (
+    LearningPathResponse,
+    KnowledgeGraph,
+    KnowledgeNode,
+    RoleLearningPath,
+)
 
 logger = logging.getLogger(__name__)
 
 class LearningPathService:
-    """Service layer handling AI Learning Path generation."""
+    """Service layer handling AI Knowledge Graph & Learning Path generation."""
 
     def __init__(
         self,
@@ -22,7 +27,7 @@ class LearningPathService:
         self.ai_provider = ai_provider or get_ai_provider()
 
     async def generate_learning_path(self, workspace_id: str) -> LearningPathResponse:
-        """Retrieves full workspace summary payload, calls Gemini Direct Engine, and returns structured learning path."""
+        """Retrieves full workspace summary payload, calls Gemini Direct Engine, and returns Knowledge Graph and Role Learning Paths."""
         summary = await self.ws_client.get_workspace_summary(workspace_id)
         if not summary:
             raise NotFoundException(f"No summary available for workspace {workspace_id}")
@@ -53,83 +58,116 @@ class LearningPathService:
                             pass
 
             if isinstance(data, dict):
-                raw_units = data.get("units", [])
-                units = [
-                    LearningUnit(
-                        id=u.get("id", f"unit-{idx+1}"),
-                        title=u.get("title", f"Unit {idx+1}"),
-                        description=u.get("description", "Core educational module."),
-                        difficulty=u.get("difficulty", "Intermediate"),
-                        estimated_time=u.get("estimated_time", "60 min"),
-                        prerequisites=u.get("prerequisites", []),
-                        learning_objectives=u.get("learning_objectives", []),
-                        topics=u.get("topics", []),
-                        skills_gained=u.get("skills_gained", []),
-                        expected_outcomes=u.get("expected_outcomes", []),
-                        recommended_reading=u.get("recommended_reading", []),
-                        keywords=u.get("keywords", []),
-                        concept_dependencies=u.get("concept_dependencies", []),
-                        real_world_examples=u.get("real_world_examples", []),
-                        assessment_focus=u.get("assessment_focus", []),
-                        practical_exercises=u.get("practical_exercises", [])
+                # 1. Extract knowledge_graph
+                kg_data = data.get("knowledge_graph", {})
+                raw_nodes = kg_data.get("nodes", [])
+                if not raw_nodes and "units" in data:
+                    raw_nodes = data.get("units", [])
+
+                nodes = [
+                    KnowledgeNode(
+                        id=n.get("id", f"node-{idx+1}"),
+                        parent=n.get("parent", ""),
+                        type=n.get("type", "concept"),
+                        title=n.get("title", f"Concept {idx+1}"),
+                        description=n.get("description", ""),
+                        difficulty=n.get("difficulty", "Intermediate"),
+                        estimated_time=n.get("estimated_time", "30 min"),
+                        learning_objectives=n.get("learning_objectives", []),
+                        skills_gained=n.get("skills_gained", []),
+                        expected_outcomes=n.get("expected_outcomes", []),
+                        keywords=n.get("keywords", []),
+                        recommended_reading=n.get("recommended_reading", []),
+                        real_world_examples=n.get("real_world_examples", []),
+                        assessment_focus=n.get("assessment_focus", []),
+                        practical_exercises=n.get("practical_exercises", []),
+                        depends_on=n.get("depends_on", n.get("prerequisites", [])),
+                        children=n.get("children", [])
                     )
-                    for idx, u in enumerate(raw_units)
+                    for idx, n in enumerate(raw_nodes)
                 ]
+
+                knowledge_graph = KnowledgeGraph(
+                    root=kg_data.get("root", "root-workspace"),
+                    nodes=nodes
+                )
+
+                # 2. Extract learning_paths
+                raw_lps = data.get("learning_paths", [])
+                role_paths = [
+                    RoleLearningPath(
+                        id=p.get("id", f"path-{idx+1}"),
+                        title=p.get("title", f"Learning Path {idx+1}"),
+                        description=p.get("description", ""),
+                        node_sequence=p.get("node_sequence", [])
+                    )
+                    for idx, p in enumerate(raw_lps)
+                ]
+
                 return LearningPathResponse(
-                    title=data.get("title", f"Curriculum Roadmap: {summary.get('title', 'Workspace')}"),
-                    description=data.get("description", "Comprehensive, dependency-aware learning curriculum."),
+                    title=data.get("title", f"Knowledge Graph: {summary.get('title', 'Workspace')}"),
+                    description=data.get("description", "Textbook-grade hierarchical knowledge graph and role-based learning paths."),
                     estimated_total_time=data.get("estimated_total_time", "12 hours"),
                     difficulty=data.get("difficulty", "Intermediate"),
-                    units=units
+                    knowledge_graph=knowledge_graph,
+                    learning_paths=role_paths,
+                    units=nodes
                 )
         except Exception as exc:
-            logger.warning(f"Error parsing Gemini JSON response: {exc}. Returning fallback learning path.")
+            logger.warning(f"Error parsing Gemini Knowledge Graph response: {exc}. Returning fallback curriculum.")
 
         return self._build_fallback_curriculum(summary)
 
     def _build_fallback_curriculum(self, summary: dict) -> LearningPathResponse:
         """Synthesizes structured fallback curriculum based on workspace topics."""
-        topics = summary.get("key_topics", ["OOP Principles", "Java Classes", "Polymorphism"])
-        units = [
-            LearningUnit(
-                id="unit-1",
-                title="1. Core Foundations & Paradigm Fundamentals",
-                description="Introduction to fundamental paradigm principles, domain modeling, and data encapsulation.",
+        topics = summary.get("key_topics", ["System Architecture", "Microservices", "Vector Databases"])
+        nodes = [
+            KnowledgeNode(
+                id="domain-1",
+                parent="root-workspace",
+                type="domain",
+                title="Domain 1: Core System Architecture",
+                description="Introduction to core system architecture and modular service layout.",
                 difficulty="Beginner",
                 estimated_time="60 min",
-                prerequisites=[],
-                learning_objectives=["Understand object vs procedural modeling", "Encapsulate class state"],
-                topics=topics[:2] if len(topics) >= 2 else ["Foundations"],
-                skills_gained=["Domain Class Design", "Data Hiding"],
-                expected_outcomes=["Build cohesive class blueprints"],
+                learning_objectives=["Understand modular architecture design"],
+                skills_gained=["System Layout Planning"],
+                expected_outcomes=["Build cohesive service structures"],
                 keywords=topics[:3],
-                concept_dependencies=["State & Behavior"],
-                real_world_examples=["Banking Account Encapsulation"],
-                assessment_focus=["Data Hiding vs Public Interfaces"],
-                practical_exercises=["Implement encapsulated BankAccount class"]
+                depends_on=[],
+                children=["module-1"]
             ),
-            LearningUnit(
-                id="unit-2",
-                title="2. Polymorphism Mechanics & Dynamic Binding",
-                description="Deep dive into compile-time overloading, runtime method overriding, and interface polymorphism.",
+            KnowledgeNode(
+                id="module-1",
+                parent="domain-1",
+                type="module",
+                title="Module 1: Vector Databases & RAG Pipelines",
+                description="Deep dive into vector embeddings, similarity search, and RAG pipelines.",
                 difficulty="Intermediate",
-                estimated_time="75 min",
-                prerequisites=["unit-1"],
-                learning_objectives=["Implement method overriding", "Leverage interface dynamic binding"],
-                topics=topics[2:4] if len(topics) >= 4 else ["Polymorphism"],
-                skills_gained=["Dynamic Method Dispatch", "Interface Abstraction"],
-                expected_outcomes=["Construct flexible polymorphic architectures"],
-                keywords=["Overriding", "Dynamic Binding", "Interface"],
-                concept_dependencies=["unit-1"],
-                real_world_examples=["Payment Processor Dispatch"],
-                assessment_focus=["Overloading vs Overriding"],
-                practical_exercises=["Build dynamic Payment Gateway interface hierarchy"]
+                estimated_time="90 min",
+                learning_objectives=["Implement similarity search using vector databases"],
+                skills_gained=["RAG Pipeline Engineering"],
+                expected_outcomes=["Deploy production RAG pipelines"],
+                keywords=topics[2:5] if len(topics) >= 5 else ["Vector Search"],
+                depends_on=["domain-1"],
+                children=[]
+            )
+        ]
+        knowledge_graph = KnowledgeGraph(root="root-workspace", nodes=nodes)
+        role_paths = [
+            RoleLearningPath(
+                id="path-architect",
+                title="System Architect Learning Path",
+                description="Comprehensive path for system architecture engineering.",
+                node_sequence=["domain-1", "module-1"]
             )
         ]
         return LearningPathResponse(
-            title=f"Curriculum Roadmap: {summary.get('title', 'Workspace')}",
-            description="Comprehensive university-level curriculum.",
+            title=f"Knowledge Graph: {summary.get('title', 'Workspace')}",
+            description="Textbook-grade hierarchical knowledge graph and role-based learning paths.",
             estimated_total_time="6 hours",
             difficulty="Intermediate",
-            units=units
+            knowledge_graph=knowledge_graph,
+            learning_paths=role_paths,
+            units=nodes
         )

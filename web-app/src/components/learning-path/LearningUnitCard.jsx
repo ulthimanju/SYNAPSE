@@ -4,7 +4,7 @@ import { Button } from '../common/Button';
 import { DifficultyBadge } from './DifficultyBadge';
 import { PrerequisiteList } from './PrerequisiteList';
 import { ObjectiveList } from './ObjectiveList';
-import { Clock, BookOpen, Sparkles, X, Check, ArrowRight, RefreshCw, HelpCircle, Code2, Award, Briefcase } from 'lucide-react';
+import { Clock, BookOpen, Sparkles, X, Check, ArrowRight, RefreshCw, HelpCircle, Code2, Award, Briefcase, GitBranch, Share2 } from 'lucide-react';
 import { api } from '../../services/api';
 
 export const LearningUnitCard = ({ unit, index, workspaceId }) => {
@@ -16,7 +16,7 @@ export const LearningUnitCard = ({ unit, index, workspaceId }) => {
   // Student Opens Unit (SOU) -> Check Already Generated? (AG) -> Fetch/Generate Content
   const handleOpenUnit = async () => {
     setIsOpenModal(true);
-    if (unitContent) return; // Already loaded locally
+    if (unitContent) return;
 
     setLoading(true);
     try {
@@ -35,19 +35,35 @@ export const LearningUnitCard = ({ unit, index, workspaceId }) => {
   const realWorldExamples = unit.real_world_examples || [];
   const practicalExercises = unit.practical_exercises || [];
   const keywords = unit.keywords || [];
+  const dependsOn = unit.depends_on || unit.prerequisites || [];
+  const nodeType = (unit.type || 'concept').toUpperCase();
+
+  const getTypeBadgeStyle = (typeStr) => {
+    switch (typeStr) {
+      case 'DOMAIN':
+        return { backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.3)' };
+      case 'MODULE':
+        return { backgroundColor: 'rgba(168, 85, 247, 0.15)', color: '#a855f7', border: '1px solid rgba(168, 85, 247, 0.3)' };
+      case 'LESSON':
+        return { backgroundColor: 'rgba(34, 197, 94, 0.15)', color: '#22c55e', border: '1px solid rgba(34, 197, 94, 0.3)' };
+      default: // CONCEPT
+        return { backgroundColor: 'var(--accent-light)', color: 'var(--accent-amber-hover)', border: '1px solid var(--border-color)' };
+    }
+  };
 
   return (
     <>
-      <Card className="editorial-card" style={{ padding: '1.5rem', marginBottom: '1.25rem', borderLeft: '4px solid var(--accent-amber)' }}>
+      <Card className="editorial-card" style={{ padding: '1.5rem', marginBottom: '1.25rem', borderLeft: nodeType === 'DOMAIN' ? '4px solid #3b82f6' : nodeType === 'MODULE' ? '4px solid #a855f7' : '4px solid var(--accent-amber)' }}>
+        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
             <div
               style={{
                 width: '32px',
                 height: '32px',
                 borderRadius: '50%',
-                backgroundColor: 'var(--accent-light)',
-                color: 'var(--accent-amber-hover)',
+                backgroundColor: 'var(--bg-secondary)',
+                color: 'var(--text-primary)',
                 fontWeight: 700,
                 display: 'flex',
                 alignItems: 'center',
@@ -58,9 +74,30 @@ export const LearningUnitCard = ({ unit, index, workspaceId }) => {
               {index + 1}
             </div>
             <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.2rem' }}>
+                <span
+                  style={{
+                    fontSize: '0.65rem',
+                    fontWeight: 700,
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    fontFamily: 'var(--font-mono)',
+                    ...getTypeBadgeStyle(nodeType),
+                  }}
+                >
+                  {nodeType}
+                </span>
+
+                {unit.parent && (
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                    parent: <strong style={{ color: 'var(--text-secondary)' }}>{unit.parent}</strong>
+                  </span>
+                )}
+              </div>
+
               <h3 className="font-serif" style={{ fontSize: '1.125rem', color: 'var(--text-primary)' }}>{unit.title}</h3>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                <Clock size={12} /> {unit.estimated_time}
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.2rem' }}>
+                <Clock size={12} /> {unit.estimated_time || '30 min'}
               </span>
             </div>
           </div>
@@ -78,10 +115,10 @@ export const LearningUnitCard = ({ unit, index, workspaceId }) => {
           {unit.description}
         </p>
 
-        {/* Enriched Content Details */}
+        {/* Objectives & Dependencies */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1rem' }}>
           <ObjectiveList objectives={unit.learning_objectives} />
-          <PrerequisiteList prerequisites={unit.prerequisites} />
+          <PrerequisiteList prerequisites={dependsOn} />
         </div>
 
         {/* Skills & Exercises Pills */}

@@ -322,7 +322,7 @@ async def get_workspace_learning_path(
     workspace_id: str = Path(..., description="Workspace ID"),
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> APIResponse[dict]:
-    """Retrieves cached learning path from MongoDB."""
+    """Retrieves cached learning path and hierarchical knowledge graph from MongoDB."""
     lp = await LearningPath.find_one(LearningPath.workspace_id == workspace_id)
     if not lp:
         raise NotFoundException("No learning path generated yet for this workspace")
@@ -331,9 +331,11 @@ async def get_workspace_learning_path(
         "id": str(lp.id),
         "workspace_id": lp.workspace_id,
         "title": lp.title,
-        "description": getattr(lp, "description", "Comprehensive curriculum roadmap."),
-        "estimated_total_time": getattr(lp, "estimated_total_time", "10 hours"),
+        "description": getattr(lp, "description", "Textbook-grade hierarchical knowledge graph and role-based learning paths."),
+        "estimated_total_time": getattr(lp, "estimated_total_time", "12 hours"),
         "difficulty": getattr(lp, "difficulty", "Intermediate"),
+        "knowledge_graph": getattr(lp, "knowledge_graph", {}),
+        "learning_paths": getattr(lp, "learning_paths", []),
         "units": lp.units,
         "version": lp.version,
     })
@@ -349,9 +351,11 @@ async def get_internal_workspace_learning_path(
 
     return APIResponse(message="Internal workspace learning path retrieved.", data={
         "title": lp.title,
-        "description": getattr(lp, "description", "Comprehensive curriculum roadmap."),
-        "estimated_total_time": getattr(lp, "estimated_total_time", "10 hours"),
+        "description": getattr(lp, "description", "Textbook-grade hierarchical knowledge graph and role-based learning paths."),
+        "estimated_total_time": getattr(lp, "estimated_total_time", "12 hours"),
         "difficulty": getattr(lp, "difficulty", "Intermediate"),
+        "knowledge_graph": getattr(lp, "knowledge_graph", {}),
+        "learning_paths": getattr(lp, "learning_paths", []),
         "units": lp.units,
     })
 

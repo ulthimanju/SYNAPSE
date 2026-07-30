@@ -236,18 +236,22 @@ class AIJobWorker:
             if existing:
                 existing.title = lp_data["title"]
                 existing.description = lp_data.get("description", "Comprehensive curriculum roadmap.")
-                existing.estimated_total_time = lp_data.get("estimated_total_time", "10 hours")
+                existing.estimated_total_time = lp_data.get("estimated_total_time", "12 hours")
                 existing.difficulty = lp_data.get("difficulty", "Intermediate")
-                existing.units = lp_data["units"]
+                existing.knowledge_graph = lp_data.get("knowledge_graph", {})
+                existing.learning_paths = lp_data.get("learning_paths", [])
+                existing.units = lp_data.get("units", [])
                 await existing.save()
             else:
                 lp = LearningPath(
                     workspace_id=ws_id,
                     title=lp_data["title"],
                     description=lp_data.get("description", "Comprehensive curriculum roadmap."),
-                    estimated_total_time=lp_data.get("estimated_total_time", "10 hours"),
+                    estimated_total_time=lp_data.get("estimated_total_time", "12 hours"),
                     difficulty=lp_data.get("difficulty", "Intermediate"),
-                    units=lp_data["units"],
+                    knowledge_graph=lp_data.get("knowledge_graph", {}),
+                    learning_paths=lp_data.get("learning_paths", []),
+                    units=lp_data.get("units", []),
                 )
                 try:
                     await lp.insert()
