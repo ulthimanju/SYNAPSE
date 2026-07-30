@@ -57,8 +57,8 @@ class AISettings(BaseModel):
     huggingface_api_key: str = Field(default="", validation_alias="HUGGINGFACE_API_KEY")
     jina_api_key: str = Field(default="", validation_alias="JINA_API_KEY")
 
-    llm_primary_model: str = Field(default="gemini-flash-latest", validation_alias="LLM_PRIMARY_MODEL")
-    llm_vision_model: str = Field(default="gemini-flash-latest", validation_alias="LLM_VISION_MODEL")
+    llm_primary_model: str = Field(default="gemini-3.6-flash", validation_alias="LLM_PRIMARY_MODEL")
+    llm_vision_model: str = Field(default="gemini-3.6-flash", validation_alias="LLM_VISION_MODEL")
     embedding_model: str = Field(default="gemini-embedding-001", validation_alias="EMBEDDING_MODEL")
     embedding_dimensions: int = Field(default=1024, validation_alias="EMBEDDING_DIMENSIONS")
     reranker_model: str = Field(default="jina-reranker-v2-base-multilingual", validation_alias="RERANKER_MODEL")

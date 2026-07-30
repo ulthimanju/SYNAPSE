@@ -10,8 +10,8 @@ class GeminiFlashProvider(BaseAIProvider):
     """AI Provider implementation for Google Gemini Direct Engine (gemini-flash-latest)."""
 
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or settings.ai.gemini_api_key or os.getenv("GEMINI_API_KEY", "")
-        self.model_name = settings.ai.llm_primary_model or "gemini-flash-latest"
+        self.api_key = api_key or os.getenv("GEMINI_API_KEY") or settings.ai.gemini_api_key or ""
+        self.model_name = os.getenv("LLM_PRIMARY_MODEL") or settings.ai.llm_primary_model or "gemini-3.6-flash"
 
     async def generate_text(
         self,
