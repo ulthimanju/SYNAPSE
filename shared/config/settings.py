@@ -14,6 +14,10 @@ class PostgresSettings(BaseModel):
     def url(self) -> str:
         return f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.db_name}"
 
+    @property
+    def vectors_url(self) -> str:
+        return f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.db_vectors}"
+
 class MongoSettings(BaseModel):
     """MongoDB Connection Settings."""
     uri: str = Field(default="mongodb://root:examplepassword@mongodb:27017", validation_alias="MONGODB_URI")

@@ -56,6 +56,9 @@ class PostgresDatabaseManager:
 # Default singleton instance using settings.postgres.url
 postgres_manager = PostgresDatabaseManager()
 
+# Singleton instance connecting to vector database (synapse_vectors)
+vectors_postgres_manager = PostgresDatabaseManager(db_url=settings.postgres.vectors_url)
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI Dependency for obtaining an async PostgreSQL session."""
     async for session in postgres_manager.get_db_session():

@@ -1,7 +1,7 @@
 import logging
 from typing import List, Dict, Any
 from sqlalchemy import text
-from shared.database import postgres_manager
+from shared.database import vectors_postgres_manager
 
 logger = logging.getLogger(__name__)
 
@@ -23,19 +23,19 @@ class VectorRepository:
             SELECT 
                 chunk_id,
                 document_id,
-                1 - (embedding <=> :embedding::vector) AS similarity_score
+                1 - (embedding <=> CAST(:emb AS vector)) AS similarity_score
             FROM document_chunk_embeddings
             WHERE workspace_id = :workspace_id
-            ORDER BY embedding <=> :embedding::vector ASC
+            ORDER BY embedding <=> CAST(:emb AS vector) ASC
             LIMIT :top_k
         """)
 
         try:
-            async with postgres_manager.session_factory() as session:
+            async with vectors_postgres_manager.session_factory() as session:
                 result = await session.execute(
                     sql,
                     {
-                        "embedding": embedding_str,
+                        "emb": embedding_str,
                         "workspace_id": workspace_id,
                         "top_k": top_k,
                     }
