@@ -49,6 +49,7 @@ class RetrievalService:
                 RetrievedChunk(
                     chunk_id=cid,
                     document_id=vr["document_id"],
+                    filename=c_info.get("filename"),
                     score=vr["score"],
                     content=c_info.get("content", f"Retrieved vector chunk payload for chunk ID {cid}."),
                     metadata=c_info.get("metadata", {"heading": "Document Section", "section_path": "Main"}),

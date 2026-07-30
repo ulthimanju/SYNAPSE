@@ -11,6 +11,7 @@ class RetrievedChunk(BaseModel):
     """Schema for an individual retrieved chunk with content & score."""
     chunk_id: str = Field(..., description="Document chunk ID")
     document_id: str = Field(..., description="Parent document ID")
+    filename: Optional[str] = Field(default=None, description="Parent document filename")
     score: float = Field(..., description="Cosine similarity score (0.0 to 1.0)")
     content: str = Field(..., description="Text content of the retrieved chunk")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Metadata such as section path, heading")
