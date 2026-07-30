@@ -18,7 +18,7 @@ class DocumentServiceClient:
             return []
         url = f"{self.base_url}/internal/chunks/by-ids"
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=None) as client:
                 res = await client.post(url, json={"chunk_ids": chunk_ids})
                 if res.status_code == 200:
                     payload = res.json()

@@ -53,10 +53,11 @@ export const ChatPanel = ({ workspaceId }) => {
       }
     } catch (err) {
       console.error('RAG chat error:', err);
+      const errorDetail = err?.error?.message || err?.message || 'An unexpected connection error occurred.';
       const errorMsg = {
         id: `err-${Date.now()}`,
         role: 'assistant',
-        content: `**RAG Search Notice**: Could not complete query vector retrieval. Please ensure documents have finished parsing and try again.`,
+        content: `**RAG Assistant Notice**: ${errorDetail}`,
         sources: [],
       };
       setMessages((prev) => [...prev, errorMsg]);

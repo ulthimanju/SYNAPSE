@@ -143,7 +143,7 @@ async def workspace_chat_turn(
     rag_service_url = f"{settings.rag_service_url}/chat"
 
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=None) as client:
             res = await client.post(rag_service_url, json={"workspace_id": workspace_id, "query": query})
             if res.status_code == 200:
                 chat_data = res.json().get("data", {})
