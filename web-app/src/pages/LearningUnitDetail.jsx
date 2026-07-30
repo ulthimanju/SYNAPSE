@@ -43,7 +43,7 @@ export const LearningUnitDetail = () => {
     setLoading(true);
     setErrorMsg(null);
     try {
-      const res = await api.get(`/workspaces/${workspaceId}/units/${unitId}`);
+      const res = await api.get(`/workspaces/${workspaceId}/units/${unitId}`, { timeout: 75000 });
       const data = res?.data || res;
       if (data) {
         setUnitContent(data);
@@ -52,7 +52,8 @@ export const LearningUnitDetail = () => {
       }
     } catch (err) {
       console.error('Error loading unit content:', err);
-      setErrorMsg('Failed to fetch unit content. Please try again.');
+      const msg = err?.error?.message || err?.message || 'Failed to fetch unit content. Please try again.';
+      setErrorMsg(msg);
     } finally {
       setLoading(false);
     }
