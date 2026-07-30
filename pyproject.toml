@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "synapse"
+version = "0.1.0"
+description = "Synapse Monorepo Platform"
+authors = ["Synapse Team"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.110.0"
+uvicorn = "^0.28.0"
+pydantic = "^2.6.0"
+
+[tool.pytest.ini_options]
+testpaths = ["gateway/tests", "services/*/tests"]
+python_files = "test_*.py"

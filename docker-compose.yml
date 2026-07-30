@@ -1,0 +1,220 @@
+version: '3.8'
+
+services:
+  # Single PostgreSQL container with pgvector support
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: synapse-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: synapse_user
+      POSTGRES_PASSWORD: synapse_password
+      POSTGRES_DB: synapse_identity
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+    networks:
+      - synapse-net
+
+  # Single MongoDB instance
+  mongodb:
+    image: mongo:7.0
+    container_name: synapse-mongodb
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: examplepassword
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - synapse-net
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: synapse-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - synapse-net
+
+  # RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: synapse-rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: synapse
+      RABBITMQ_DEFAULT_PASS: synapse_pass
+    networks:
+      - synapse-net
+
+  # MinIO Object Storage
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: synapse-minio
+    restart: always
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadminpassword
+    volumes:
+      - minio_data:/data
+    networks:
+      - synapse-net
+
+  # Identity Service (Port 8001)
+  identity-service:
+    build:
+      context: .
+      dockerfile: services/identity-service/Dockerfile
+    container_name: synapse-identity-service
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "8001:8001"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      synapse-net:
+        aliases:
+          - identity-service
+
+  # Workspace Service (Port 8002)
+  workspace-service:
+    build:
+      context: .
+      dockerfile: services/workspace-service/Dockerfile
+    container_name: synapse-workspace-service
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "8002:8002"
+    depends_on:
+      - mongodb
+      - rabbitmq
+    networks:
+      synapse-net:
+        aliases:
+          - workspace-service
+
+  # Document Processing Service (Port 8003)
+  document-service:
+    build:
+      context: .
+      dockerfile: services/document-service/Dockerfile
+    container_name: synapse-document-service
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "8003:8003"
+    depends_on:
+      - mongodb
+      - postgres
+      - minio
+      - rabbitmq
+    networks:
+      synapse-net:
+        aliases:
+          - document-service
+
+  # AI Service (Port 8004)
+  ai-service:
+    build:
+      context: .
+      dockerfile: services/ai-service/Dockerfile
+    container_name: synapse-ai-service
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "8004:8004"
+    depends_on:
+      - rabbitmq
+    networks:
+      synapse-net:
+        aliases:
+          - ai-service
+
+  # RAG Service (Port 8005)
+  rag-service:
+    build:
+      context: .
+      dockerfile: services/rag-service/Dockerfile
+    container_name: synapse-rag-service
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "8005:8005"
+    depends_on:
+      - postgres
+      - mongodb
+    networks:
+      synapse-net:
+        aliases:
+          - rag-service
+
+  # API Gateway (Port 8000)
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    container_name: synapse-gateway
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - identity-service
+      - workspace-service
+      - document-service
+      - ai-service
+      - rag-service
+      - redis
+    networks:
+      synapse-net:
+        aliases:
+          - gateway
+
+  # Web Application (Port 3000 -> 80)
+  web-app:
+    build:
+      context: ./web-app
+      dockerfile: Dockerfile
+    container_name: synapse-web-app
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - gateway
+    networks:
+      - synapse-net
+
+networks:
+  synapse-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  mongo_data:
+  redis_data:
+  minio_data:
