@@ -278,8 +278,21 @@ export const WorkspaceDetail = () => {
     <WorkspaceLayout>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
-        {/* Tab Navigation */}
-        <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', overflowX: 'auto' }}>
+        {/* Tab Navigation (Sticky Header) */}
+        <div
+          style={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 20,
+            backgroundColor: 'var(--bg-primary)',
+            display: 'flex',
+            gap: '0.5rem',
+            borderBottom: '1px solid var(--border-color)',
+            paddingTop: '0.5rem',
+            paddingBottom: '0.75rem',
+            overflowX: 'auto',
+          }}
+        >
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
