@@ -45,6 +45,8 @@ class WorkspaceRead(BaseModel):
     updated_at: datetime
 
 class WorkspaceTitleRead(BaseModel):
-    """Lightweight workspace projection — only id and name for dropdown menus."""
+    """Lightweight workspace projection — includes id, name, is_owner, and role for dropdown menus."""
     id: str
     name: str
+    is_owner: bool = True
+    role: str = "owner"

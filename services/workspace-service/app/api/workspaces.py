@@ -38,7 +38,7 @@ async def list_workspaces(
     service: WorkspaceService = Depends(get_workspace_service),
 ) -> APIResponse[List[WorkspaceRead]]:
     """Lists all accessible workspaces for the authenticated user."""
-    result = await service.list_user_workspaces(user_id=current_user.user_id)
+    result = await service.list_user_workspaces(user_id=current_user.user_id, email=current_user.email)
     return APIResponse(message="Workspaces retrieved successfully.", data=result)
 
 @router.get("/titles", response_model=APIResponse[List[WorkspaceTitleRead]])
@@ -46,11 +46,17 @@ async def list_workspace_titles(
     current_user: AuthenticatedUser = Depends(get_current_user),
     service: WorkspaceService = Depends(get_workspace_service),
 ) -> APIResponse[List[WorkspaceTitleRead]]:
-    """Returns a lightweight list of workspace id+name for topbar dropdown menus.
-    More efficient than GET /workspaces — no timestamps, owner_id, or visibility fields.
-    """
-    workspaces = await service.list_user_workspaces(user_id=current_user.user_id)
-    titles = [WorkspaceTitleRead(id=w.id, name=w.name) for w in workspaces]
+    """Returns a lightweight list of workspace id+name for topbar dropdown menus."""
+    workspaces = await service.list_user_workspaces(user_id=current_user.user_id, email=current_user.email)
+    titles = [
+        WorkspaceTitleRead(
+            id=w.id,
+            name=w.name,
+            is_owner=w.is_owner,
+            role=w.role,
+        )
+        for w in workspaces
+    ]
     return APIResponse(message="Workspace titles retrieved.", data=titles)
 
 @router.get("/{workspace_id}", response_model=APIResponse[WorkspaceRead])
