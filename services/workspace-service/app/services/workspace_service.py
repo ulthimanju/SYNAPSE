@@ -102,7 +102,13 @@ class WorkspaceService:
         return results
 
     async def get_workspace_detail(self, user_id: str, workspace_id: str, email: str | None = None) -> WorkspaceRead:
-        """Fetches workspace details after verifying user membership."""
+        """Fetches workspace details after verifying user membership with Redis caching."""
+        cache_key = f"ws_detail:{workspace_id}:{user_id}"
+        cached = await redis_cache_manager.get_json_cache(cache_key)
+        if cached is not None and isinstance(cached, dict):
+            logger.info(f"⚡ [REDIS WORKSPACE DETAIL HIT] Bypassed SQL query for workspace '{workspace_id[:8]}'")
+            return WorkspaceRead.model_validate(cached)
+
         workspace = await self.workspace_repo.get_by_id(workspace_id)
         if not workspace:
             raise NotFoundException("Workspace not found")
@@ -117,7 +123,7 @@ class WorkspaceService:
 
         role = "owner" if is_owner else (membership.role if membership else "collaborator")
 
-        return WorkspaceRead(
+        result = WorkspaceRead(
             id=str(workspace.id),
             name=workspace.name,
             owner_id=workspace.owner_id,
@@ -129,6 +135,9 @@ class WorkspaceService:
             created_at=workspace.created_at,
             updated_at=workspace.updated_at,
         )
+
+        await redis_cache_manager.set_json_cache(cache_key, result.model_dump(mode="json"), ttl_seconds=3600)
+        return result
 
     async def update_workspace(self, user_id: str, workspace_id: str, payload: WorkspaceUpdate) -> WorkspaceRead:
         """Updates workspace fields after verifying owner permission."""

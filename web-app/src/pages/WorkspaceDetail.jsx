@@ -32,7 +32,7 @@ export const WorkspaceDetail = () => {
   const [createLoading, setCreateLoading] = useState(false);
 
   const [uploading, setUploading] = useState(false);
-  const [uploadStatuses, setUploadStatuses] = useState({}); // { [filename]: 'uploading'|'done'|'error' }
+  const [uploadStatuses, setUploadStatuses] = useState({});
   const [summary, setSummary] = useState(null);
   const [learningPath, setLearningPath] = useState(null);
   const [activeJobId, setActiveJobId] = useState(null);
@@ -54,7 +54,7 @@ export const WorkspaceDetail = () => {
     } catch (err) {
       if (err.response?.status === 404 || err.response?.status === 403) {
         try {
-          const listRes = await api.get('/workspaces');
+          const listRes = await api.get('/workspaces/titles');
           const workspaces = listRes?.data?.data || [];
           if (workspaces.length === 0) {
             setHasNoWorkspaces(true);
@@ -100,14 +100,25 @@ export const WorkspaceDetail = () => {
     }
   };
 
+  // Optimization 1: On workspace select, fetch ONLY workspace info & documents (default tab)
   useEffect(() => {
     if (workspaceId) {
       checkWorkspaceExists();
       fetchDocuments();
-      fetchSummary();
-      fetchLearningPath();
+      setSummary(null);
+      setLearningPath(null);
     }
   }, [workspaceId]);
+
+  // Optimization 1 Lazy Loading: Fetch Summary or Learning Path ONLY when user switches to those tabs
+  useEffect(() => {
+    if (workspaceId && activeTab === 'summary' && !summary) {
+      fetchSummary();
+    }
+    if (workspaceId && activeTab === 'learning' && !learningPath) {
+      fetchLearningPath();
+    }
+  }, [workspaceId, activeTab, summary, learningPath]);
 
   const handleQueueSummary = async () => {
     if (!isOwner) return;
@@ -142,8 +153,8 @@ export const WorkspaceDetail = () => {
   const handleJobComplete = () => {
     setActiveJobId(null);
     setNotice('Background AI Generation Job completed successfully!');
-    fetchSummary();
-    fetchLearningPath();
+    if (activeTab === 'summary') fetchSummary();
+    if (activeTab === 'learning') fetchLearningPath();
   };
 
   const handleUpload = async (files) => {
