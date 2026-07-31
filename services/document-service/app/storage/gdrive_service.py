@@ -4,33 +4,38 @@ import uuid
 import json
 import logging
 import httpx
-from typing import Optional
-from shared.exceptions import ServiceUnavailableException, BadRequestException, NotFoundException
+from typing import Optional, Tuple
+from shared.exceptions import ServiceUnavailableException, BadRequestException, NotFoundException, UnauthorizedException
+from shared.cache.redis_client import redis_cache_manager
 
 logger = logging.getLogger(__name__)
 
 GOOGLE_DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files"
 GOOGLE_DRIVE_UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"
-
-from .minio_client import MinIOStorageService
+GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
 
 class GoogleDriveStorageService:
-    """Hybrid Storage Provider targeting Google Drive with seamless MinIO object storage fallback."""
+    """Exclusive Google Drive Storage Provider with automatic OAuth 2.0 Access Token Auto-Refresh and Retry."""
 
     def __init__(self):
-        self.minio_service = MinIOStorageService()
+        self.client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+        self.client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
 
-    async def get_or_create_workspace_folder(self, workspace_id: str, access_token: str) -> str:
-        """Queries Google Drive for folder named workspace_id; creates it if missing."""
+    async def get_or_create_workspace_folder(self, workspace_id: str, access_token: str) -> Tuple[str, bool]:
+        """Queries Google Drive for folder named workspace_id; creates it if missing.
+        Returns (folder_id, is_unauthorized_boolean).
+        """
         headers = {"Authorization": f"Bearer {access_token}"}
         query = f"name='{workspace_id}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
                 res = await client.get(GOOGLE_DRIVE_FILES_URL, headers=headers, params={"q": query})
+                if res.status_code == 401:
+                    return "", True
                 if res.status_code == 200:
                     files = res.json().get("files", [])
                     if files:
-                        return files[0]["id"]
+                        return files[0]["id"], False
 
                 # Create workspace folder in Google Drive
                 folder_metadata = {
@@ -38,15 +43,42 @@ class GoogleDriveStorageService:
                     "mimeType": "application/vnd.google-apps.folder",
                 }
                 create_res = await client.post(GOOGLE_DRIVE_FILES_URL, headers=headers, json=folder_metadata)
+                if create_res.status_code == 401:
+                    return "", True
                 if create_res.status_code in (200, 201):
                     folder_id = create_res.json().get("id")
                     if folder_id:
                         logger.info(f"Created Google Drive folder for workspace '{workspace_id}' (folder ID: {folder_id})")
-                        return folder_id
-                raise Exception(f"Google Drive folder creation failed ({create_res.status_code}): {create_res.text[:200]}")
+                        return folder_id, False
+                raise ServiceUnavailableException(f"Google Drive folder creation failed ({create_res.status_code}): {create_res.text[:200]}")
         except Exception as exc:
-            logger.warning(f"Google Drive folder creation error for workspace '{workspace_id}': {exc}")
+            logger.error(f"Google Drive folder creation error for workspace '{workspace_id}': {exc}")
             raise
+
+    async def refresh_google_access_token(self, user_id: str, refresh_token: str) -> Optional[str]:
+        """Uses long-lived Google OAuth refresh_token to acquire a fresh Google access_token."""
+        if not refresh_token:
+            return None
+        data = {
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.post(GOOGLE_TOKEN_URI, data=data)
+                if res.status_code == 200:
+                    new_token = res.json().get("access_token")
+                    if new_token:
+                        logger.info(f"🔄 [GOOGLE OAUTH REFRESH SUCCESS] Acquired fresh Google access token for user {user_id}!")
+                        if user_id:
+                            await redis_cache_manager.set_cache(f"gdrive_access_token:{user_id}", new_token, ttl_seconds=3500)
+                        return new_token
+                logger.warning(f"Google OAuth token refresh failed ({res.status_code}): {res.text[:150]}")
+        except Exception as exc:
+            logger.error(f"Google OAuth token refresh exception: {exc}")
+        return None
 
     async def upload_file(
         self,
@@ -56,119 +88,179 @@ class GoogleDriveStorageService:
         content_type: str = "application/octet-stream",
         auth_token: Optional[str] = None,
     ) -> str:
-        """Uploads file to Google Drive if OAuth token is valid; falls back seamlessly to MinIO S3 object storage."""
-        google_token = self._extract_google_token(auth_token)
+        """Uploads file to Google Drive. Auto-refreshes OAuth token and retries if access token is expired (No local disk/MinIO fallbacks)."""
+        google_token, refresh_token, user_id = await self._extract_google_tokens(auth_token)
+
+        if not google_token and not refresh_token:
+            raise UnauthorizedException("Google Drive OAuth token missing. Please sign in with Google.")
+
+        # Attempt 1: Upload with current google_token
+        is_401 = False
         if google_token:
-            try:
-                folder_id = await self.get_or_create_workspace_folder(workspace_id, google_token)
-                headers = {"Authorization": f"Bearer {google_token}"}
-                metadata = {"name": filename, "parents": [folder_id]}
+            folder_id, is_401 = await self.get_or_create_workspace_folder(workspace_id, google_token)
+            if not is_401 and folder_id:
+                upload_res = await self._perform_gdrive_upload(folder_id, filename, file_bytes, content_type, google_token)
+                if upload_res:
+                    return upload_res
+                is_401 = True
 
-                boundary = f"----SynapseBoundary{uuid.uuid4().hex}"
-                body = (
-                    f"--{boundary}\r\n"
-                    f"Content-Type: application/json; charset=UTF-8\r\n\r\n"
-                    f"{json.dumps(metadata)}\r\n"
-                    f"--{boundary}\r\n"
-                    f"Content-Type: {content_type}\r\n\r\n"
-                ).encode("utf-8") + file_bytes + f"\r\n--{boundary}--\r\n".encode("utf-8")
+        # Auto-Refresh OAuth Token & Retry if 401 or token expired
+        if (is_401 or not google_token) and refresh_token:
+            logger.info("🔐 Google OAuth access token expired (401). Triggering automatic token refresh...")
+            fresh_token = await self.refresh_google_access_token(user_id=user_id, refresh_token=refresh_token)
+            if fresh_token:
+                folder_id, is_401 = await self.get_or_create_workspace_folder(workspace_id, fresh_token)
+                if not is_401 and folder_id:
+                    upload_res = await self._perform_gdrive_upload(folder_id, filename, file_bytes, content_type, fresh_token)
+                    if upload_res:
+                        logger.info(f"⚡ [RETRY SUCCESS] Google Drive upload succeeded after OAuth token refresh!")
+                        return upload_res
 
-                headers["Content-Type"] = f"multipart/related; boundary={boundary}"
+        raise ServiceUnavailableException("Google Drive upload failed: OAuth access token expired and refresh attempt failed. Please sign in with Google again.")
 
-                async with httpx.AsyncClient(timeout=60.0) as client:
-                    res = await client.post(GOOGLE_DRIVE_UPLOAD_URL, headers=headers, content=body)
-                    if res.status_code in (200, 201):
-                        file_id = res.json().get("id")
-                        if file_id:
-                            logger.info(f"[GDRIVE STORAGE] Uploaded '{filename}' to Google Drive in folder '{workspace_id}' (file ID: {file_id})")
-                            return f"gdrive://{file_id}"
-                    logger.warning(f"Google Drive upload API returned status {res.status_code}, falling back to MinIO S3 storage.")
-            except Exception as exc:
-                logger.warning(f"Google Drive upload attempt failed ({exc}), falling back to MinIO S3 storage.")
+    async def _perform_gdrive_upload(self, folder_id: str, filename: str, file_bytes: bytes, content_type: str, access_token: str) -> Optional[str]:
+        """Helper executing multipart POST upload to Google Drive."""
+        headers = {"Authorization": f"Bearer {access_token}"}
+        metadata = {"name": filename, "parents": [folder_id]}
 
-        # Seamless Fallback to MinIO S3 Object Storage
+        boundary = f"----SynapseBoundary{uuid.uuid4().hex}"
+        body = (
+            f"--{boundary}\r\n"
+            f"Content-Type: application/json; charset=UTF-8\r\n\r\n"
+            f"{json.dumps(metadata)}\r\n"
+            f"--{boundary}\r\n"
+            f"Content-Type: {content_type}\r\n\r\n"
+        ).encode("utf-8") + file_bytes + f"\r\n--{boundary}--\r\n".encode("utf-8")
+
+        headers["Content-Type"] = f"multipart/related; boundary={boundary}"
+
         try:
-            self.minio_service.ensure_bucket()
-            storage_key = self.minio_service.generate_storage_key(workspace_id, filename)
-            self.minio_service.upload_file(storage_key, io.BytesIO(file_bytes), len(file_bytes), content_type)
-            logger.info(f"📦 [MINIO STORAGE] Uploaded '{filename}' to MinIO object storage (key: {storage_key})")
-            return f"minio://{storage_key}"
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                res = await client.post(GOOGLE_DRIVE_UPLOAD_URL, headers=headers, content=body)
+                if res.status_code in (200, 201):
+                    file_id = res.json().get("id")
+                    if file_id:
+                        logger.info(f"📁 [GDRIVE UPLOAD SUCCESS] Uploaded '{filename}' to Google Drive in folder '{folder_id}' (file ID: {file_id})")
+                        return f"gdrive://{file_id}"
+                if res.status_code == 401:
+                    return None
+                raise ServiceUnavailableException(f"Google Drive upload API status {res.status_code}: {res.text[:200]}")
         except Exception as exc:
-            logger.error(f"MinIO storage upload failure for '{filename}': {exc}")
-            raise ServiceUnavailableException(f"Storage upload failed: {str(exc)}")
+            logger.error(f"Google Drive upload execution error for '{filename}': {exc}")
+            raise
 
     async def get_file_bytes(self, storage_key: str, auth_token: Optional[str] = None) -> bytes:
-        """Downloads raw file bytes from MinIO or Google Drive."""
-        if storage_key.startswith("minio://"):
-            real_key = storage_key.replace("minio://", "")
-            return self.minio_service.get_file_bytes(real_key)
+        """Downloads raw file bytes from Google Drive. Auto-refreshes OAuth token and retries if access token is expired."""
+        google_token, refresh_token, user_id = await self._extract_google_tokens(auth_token)
+        file_id = storage_key.replace("gdrive://", "").replace("minio://", "")
 
-        google_token = self._extract_google_token(auth_token)
-        if google_token and storage_key.startswith("gdrive://"):
-            file_id = storage_key.replace("gdrive://", "")
-            headers = {"Authorization": f"Bearer {google_token}"}
-            url = f"{GOOGLE_DRIVE_FILES_URL}/{file_id}?alt=media"
+        # Attempt 1: Fetch with current google_token
+        if google_token:
+            data, is_401 = await self._perform_gdrive_download(file_id, google_token)
+            if data is not None:
+                return data
+            if not is_401:
+                raise NotFoundException(f"File ID '{file_id}' not found on Google Drive")
 
-            try:
-                async with httpx.AsyncClient(timeout=30.0) as client:
-                    res = await client.get(url, headers=headers)
-                    if res.status_code == 200:
-                        return res.content
-            except Exception as exc:
-                logger.warning(f"Google Drive download error for file ID {file_id}: {exc}")
+        # Auto-Refresh OAuth Token & Retry if 401
+        if refresh_token:
+            logger.info(f"🔐 Google OAuth access token expired (401) during file retrieval of '{file_id}'. Triggering automatic token refresh...")
+            fresh_token = await self.refresh_google_access_token(user_id=user_id, refresh_token=refresh_token)
+            if fresh_token:
+                data, is_401 = await self._perform_gdrive_download(file_id, fresh_token)
+                if data is not None:
+                    return data
 
-        # Try MinIO fallback
-        real_key = storage_key.replace("gdrive://", "").replace("minio://", "")
+        raise ServiceUnavailableException(f"Failed to retrieve file bytes for '{storage_key}': Google Drive OAuth token expired.")
+
+    async def _perform_gdrive_download(self, file_id: str, access_token: str) -> Tuple[Optional[bytes], bool]:
+        """Helper executing GET media download from Google Drive."""
+        headers = {"Authorization": f"Bearer {access_token}"}
+        url = f"{GOOGLE_DRIVE_FILES_URL}/{file_id}?alt=media"
+
         try:
-            return self.minio_service.get_file_bytes(real_key)
-        except Exception:
-            raise ServiceUnavailableException(f"Failed to retrieve file bytes for '{storage_key}'")
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                res = await client.get(url, headers=headers)
+                if res.status_code == 200:
+                    return res.content, False
+                if res.status_code == 401:
+                    return None, True
+                return None, False
+        except Exception as exc:
+            logger.error(f"Google Drive download error for file ID {file_id}: {exc}")
+            return None, False
 
     async def delete_file(self, storage_key: str, auth_token: Optional[str] = None) -> bool:
-        """Deletes file from MinIO or Google Drive."""
-        if storage_key.startswith("minio://"):
-            real_key = storage_key.replace("minio://", "")
-            return self.minio_service.delete_file(real_key)
+        """Deletes file from Google Drive. Auto-refreshes OAuth token and retries if access token is expired."""
+        google_token, refresh_token, user_id = await self._extract_google_tokens(auth_token)
+        file_id = storage_key.replace("gdrive://", "").replace("minio://", "")
 
-        google_token = self._extract_google_token(auth_token)
-        if google_token and storage_key.startswith("gdrive://"):
-            file_id = storage_key.replace("gdrive://", "")
-            headers = {"Authorization": f"Bearer {google_token}"}
-            url = f"{GOOGLE_DRIVE_FILES_URL}/{file_id}"
+        if google_token:
+            ok, is_401 = await self._perform_gdrive_delete(file_id, google_token)
+            if ok:
+                return True
+            if not is_401:
+                return False
 
-            try:
-                async with httpx.AsyncClient(timeout=15.0) as client:
-                    res = await client.delete(url, headers=headers)
-                    if res.status_code in (200, 204):
-                        logger.info(f"[GDRIVE] Deleted file {file_id} from Google Drive")
-                        return True
-            except Exception as exc:
-                logger.warning(f"Google Drive delete error for file ID {file_id}: {exc}")
+        if refresh_token:
+            fresh_token = await self.refresh_google_access_token(user_id=user_id, refresh_token=refresh_token)
+            if fresh_token:
+                ok, _ = await self._perform_gdrive_delete(file_id, fresh_token)
+                return ok
 
-        real_key = storage_key.replace("gdrive://", "").replace("minio://", "")
-        return self.minio_service.delete_file(real_key)
+        return False
 
-    def _extract_google_token(self, auth_token: Optional[str]) -> Optional[str]:
-        """Extracts Google OAuth access token from Synapse JWT claims, raw Bearer header, or dev environment variable."""
+    async def _perform_gdrive_delete(self, file_id: str, access_token: str) -> Tuple[bool, bool]:
+        """Helper executing DELETE on Google Drive file."""
+        headers = {"Authorization": f"Bearer {access_token}"}
+        url = f"{GOOGLE_DRIVE_FILES_URL}/{file_id}"
+
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                res = await client.delete(url, headers=headers)
+                if res.status_code in (200, 204):
+                    logger.info(f"🗑️ [GDRIVE DELETE SUCCESS] Deleted file {file_id} from Google Drive")
+                    return True, False
+                if res.status_code == 401:
+                    return False, True
+                return False, False
+        except Exception as exc:
+            logger.warning(f"Google Drive delete error for file ID {file_id}: {exc}")
+            return False, False
+
+    async def _extract_google_tokens(self, auth_token: Optional[str]) -> Tuple[Optional[str], Optional[str], str]:
+        """Extracts (google_access_token, google_refresh_token, user_id) from Synapse JWT claims or Redis."""
         dev_token = os.getenv("GOOGLE_DRIVE_DEV_TOKEN") or os.getenv("GOOGLE_ACCESS_TOKEN")
+        dev_refresh = os.getenv("GOOGLE_REFRESH_TOKEN")
 
         if not auth_token:
-            return dev_token
+            return dev_token, dev_refresh, ""
 
         raw_token = auth_token[7:] if auth_token.startswith("Bearer ") else auth_token
 
-        # 1. Decode Synapse JWT payload to extract embedded google_token
+        user_id = ""
+        g_access = None
+        g_refresh = None
+
         try:
             from shared.auth.jwt import decode_access_token
             payload = decode_access_token(raw_token)
-            g_token = payload.get("google_token")
-            if g_token:
-                return g_token
+            user_id = payload.get("sub", "")
+            g_access = payload.get("google_token")
+            g_refresh = payload.get("google_refresh_token")
         except Exception:
             pass
 
-        # 2. Check if raw_token is already a direct Google OAuth token
-        if raw_token and raw_token.startswith("ya29."):
-            return raw_token
+        # Also check Redis cache for updated tokens if user_id is known
+        if user_id:
+            cached_access = await redis_cache_manager.get_cache(f"gdrive_access_token:{user_id}")
+            if cached_access:
+                g_access = cached_access
+            cached_refresh = await redis_cache_manager.get_cache(f"gdrive_refresh_token:{user_id}")
+            if cached_refresh:
+                g_refresh = cached_refresh
 
-        return dev_token or raw_token
+        if raw_token and raw_token.startswith("ya29."):
+            g_access = raw_token
+
+        return g_access or dev_token, g_refresh or dev_refresh, user_id

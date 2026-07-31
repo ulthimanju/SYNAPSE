@@ -30,7 +30,7 @@ class AuthService:
     async def handle_google_callback(self, code: str, redirect_uri: str) -> TokenResponse:
         """Processes Google OAuth callback code, decodes id_token JWT directly, provisions user if missing, and issues Synapse JWT."""
         # 1. Exchange code for Google token and extract user profile directly from id_token (bypasses 2nd HTTP API call)
-        google_access_token, profile = await self.google_client.exchange_code_and_get_profile(code=code, redirect_uri=redirect_uri)
+        google_access_token, google_refresh_token, profile = await self.google_client.exchange_code_and_get_profile(code=code, redirect_uri=redirect_uri)
 
         # 2. Lookup user or create new user
         user = await self.user_repo.get_user_by_email(email=profile.email)
@@ -49,6 +49,12 @@ class AuthService:
 
         await self.session.commit()
 
+        # Cache Google tokens in Redis for auto-refresh when access_token expires
+        if google_refresh_token:
+            await redis_cache_manager.set_cache(f"gdrive_refresh_token:{user.id}", google_refresh_token, ttl_seconds=30*86400)
+        if google_access_token:
+            await redis_cache_manager.set_cache(f"gdrive_access_token:{user.id}", google_access_token, ttl_seconds=3500)
+
         # 3. Issue Synapse JWT Access & Refresh Tokens
         role_names = [r.name for r in user.roles]
         token_data = {
@@ -56,6 +62,7 @@ class AuthService:
             "email": user.email,
             "roles": role_names,
             "google_token": google_access_token,
+            "google_refresh_token": google_refresh_token,
         }
         access_token = create_access_token(data=token_data)
         refresh_token = create_access_token(data={"sub": str(user.id), "type": "refresh"})

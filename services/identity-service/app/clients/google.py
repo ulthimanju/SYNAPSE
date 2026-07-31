@@ -42,8 +42,8 @@ class GoogleOAuthClient:
         url = f"{GOOGLE_AUTH_URI}?{urlencode(params)}"
         return url, state_str
 
-    async def exchange_code_and_get_profile(self, code: str, redirect_uri: str) -> Tuple[str, GoogleProfile]:
-        """Exchanges OAuth code for Google access token and extracts user profile directly from id_token JWT (bypassing extra userinfo HTTP call)."""
+    async def exchange_code_and_get_profile(self, code: str, redirect_uri: str) -> Tuple[str, Optional[str], GoogleProfile]:
+        """Exchanges OAuth code for Google access token and refresh token, and extracts user profile directly from id_token JWT."""
         data = {
             "client_id": self.client_id,
             "client_secret": self.client_secret,
@@ -58,6 +58,7 @@ class GoogleOAuthClient:
                     raise BadRequestException(f"Failed to exchange Google OAuth code: {res.text}")
                 payload = res.json()
                 access_token = payload.get("access_token")
+                refresh_token = payload.get("refresh_token")
                 id_token_jwt = payload.get("id_token")
 
                 if not access_token:
@@ -73,16 +74,39 @@ class GoogleOAuthClient:
                             name=claims.get("name"),
                         )
                         logger.info(f"⚡ [OAUTH OPTIMIZATION] Decoded Google id_token JWT for '{profile.email}'. Bypassed /userinfo API call!")
-                        return access_token, profile
+                        return access_token, refresh_token, profile
                     except Exception as jwt_exc:
                         logger.warning(f"Failed to decode Google id_token claims locally ({jwt_exc}). Falling back to UserInfo API.")
 
                 # Fallback: Call Google UserInfo API if id_token is unparseable
                 profile = await self.get_user_info(access_token)
-                return access_token, profile
+                return access_token, refresh_token, profile
 
         except httpx.RequestError as exc:
             raise ServiceUnavailableException(f"Google OAuth service connection error: {str(exc)}")
+
+    async def refresh_access_token(self, refresh_token: str) -> Optional[str]:
+        """Uses long-lived Google OAuth refresh_token to acquire a fresh Google access_token."""
+        data = {
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.post(GOOGLE_TOKEN_URI, data=data)
+                if res.status_code == 200:
+                    payload = res.json()
+                    new_access_token = payload.get("access_token")
+                    if new_access_token:
+                        logger.info("🔄 [GOOGLE OAUTH REFRESH] Successfully refreshed Google access token.")
+                        return new_access_token
+                logger.warning(f"Google token refresh failed ({res.status_code}): {res.text[:150]}")
+                return None
+        except Exception as exc:
+            logger.warning(f"Google OAuth token refresh exception: {exc}")
+            return None
 
     async def get_user_info(self, access_token: str) -> GoogleProfile:
         """Fetches Google user profile using access token (Fallback endpoint)."""
@@ -98,5 +122,7 @@ class GoogleOAuthClient:
                     email=data["email"],
                     name=data.get("name"),
                 )
+        except httpx.RequestError as exc:
+            raise ServiceUnavailableException(f"Google UserInfo connection error: {str(exc)}")
         except httpx.RequestError as exc:
             raise ServiceUnavailableException(f"Google UserInfo API connection error: {str(exc)}")
