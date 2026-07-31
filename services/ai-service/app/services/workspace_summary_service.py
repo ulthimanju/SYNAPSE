@@ -10,6 +10,8 @@ from ..schemas.summary import WorkspaceSummaryResponse
 
 logger = logging.getLogger(__name__)
 
+from shared.cache.redis_client import redis_cache_manager, CacheKeys
+
 class WorkspaceSummaryService:
     """Service layer handling AI Workspace Summary generation."""
 
@@ -23,12 +25,20 @@ class WorkspaceSummaryService:
 
     async def generate_summary(self, workspace_id: str) -> WorkspaceSummaryResponse:
         """Retrieves parsed Markdown from Document Service, formats prompt, calls Gemini Direct Engine, and returns structured summary."""
+        # 1. Check Redis Cache
+        cache_key = CacheKeys.workspace_summary(workspace_id)
+        cached_summary = await redis_cache_manager.get_json_cache(cache_key)
+        if cached_summary:
+            logger.info(f"⚡ [REDIS WORKSPACE SUMMARY HIT] Bypassed Gemini LLM call for workspace '{workspace_id}'")
+            return WorkspaceSummaryResponse.model_validate(cached_summary)
+
         documents = await self.doc_client.get_parsed_documents(workspace_id)
         if not documents:
             raise NotFoundException(f"No parsed document Markdown available for workspace {workspace_id}")
 
         prompt = build_workspace_summary_prompt(documents)
 
+        summary_res = None
         try:
             raw_json_str = await self.ai_provider.generate_structured(
                 prompt=prompt,
@@ -55,7 +65,7 @@ class WorkspaceSummaryService:
                                 pass
 
                 if isinstance(data, dict) and (data.get("overview") or data.get("title")):
-                    return WorkspaceSummaryResponse(
+                    summary_res = WorkspaceSummaryResponse(
                         title=data.get("title", "Workspace Executive Summary"),
                         overview=data.get("overview", "Comprehensive synthesis of workspace document assets."),
                         visualizations=data.get("visualizations", []),
@@ -68,7 +78,12 @@ class WorkspaceSummaryService:
         except Exception as exc:
             logger.warning(f"Gemini API structured summary notice: {exc}. Extracting document synthesis directly.")
 
-        return self._synthesize_from_documents(documents)
+        if not summary_res:
+            summary_res = self._synthesize_from_documents(documents)
+
+        # Save to Redis Cache (24-hour TTL)
+        await redis_cache_manager.set_json_cache(cache_key, summary_res.model_dump(), ttl_seconds=86400)
+        return summary_res
 
     def _synthesize_from_documents(self, documents: List[dict]) -> WorkspaceSummaryResponse:
         """Synthesizes structured summary dynamically from actual parsed document titles and Markdown headers.

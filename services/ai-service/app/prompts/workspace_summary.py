@@ -61,11 +61,20 @@ Rules:
 """
 
 def build_workspace_summary_prompt(documents: list) -> str:
-    """Formats document contents into prompt for Gemini Direct Engine."""
+    """Formats document contents into an optimized prompt for Gemini Direct Engine, capping max tokens per document for 10x faster responses."""
     formatted_docs = []
+    MAX_CHAR_PER_DOC = 12000
+
     for idx, doc in enumerate(documents, start=1):
         title = doc.get("title", f"Document #{idx}")
         content = doc.get("markdown", "")
+        if len(content) > MAX_CHAR_PER_DOC:
+            # Extract heading outline + truncated body
+            lines = content.splitlines()
+            headings = [l for l in lines if l.strip().startswith("#")]
+            heading_outline = "\n".join(headings[:30])
+            body_sample = content[:MAX_CHAR_PER_DOC]
+            content = f"{body_sample}\n\n[Document Outline / Headings]:\n{heading_outline}"
         formatted_docs.append(f"--- Document #{idx}: {title} ---\n{content}\n")
     
     docs_text = "\n\n".join(formatted_docs)

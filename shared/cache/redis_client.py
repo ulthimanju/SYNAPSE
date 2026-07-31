@@ -43,6 +43,10 @@ class CacheKeys:
     def lp_cache(workspace_id: str) -> str:
         return f"lp_cache:{workspace_id}"
 
+    @staticmethod
+    def workspace_summary(workspace_id: str) -> str:
+        return f"ws_summary:{workspace_id}"
+
     # Unit Content — same content for all workspace members.
     @staticmethod
     def unit_content(workspace_id: str, unit_id: str) -> str:
