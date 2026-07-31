@@ -370,6 +370,41 @@ async def get_internal_workspace_learning_path(
         "units": lp.units,
     })
 
+async def _trigger_succeeding_unit_pregeneration(workspace_id: str, current_unit_id: str) -> None:
+    """Locates the succeeding unit in LearningPath and pre-generates it asynchronously in background."""
+    try:
+        lp = await LearningPath.find_one(LearningPath.workspace_id == workspace_id)
+        if not lp:
+            return
+
+        nodes = []
+        if isinstance(lp.knowledge_graph, dict) and "nodes" in lp.knowledge_graph:
+            nodes.extend(lp.knowledge_graph["nodes"])
+        if lp.units:
+            nodes.extend(lp.units)
+
+        seen_ids = set()
+        ordered_units = []
+        for u in nodes:
+            if isinstance(u, dict) and u.get("id"):
+                uid = str(u["id"])
+                if uid not in seen_ids:
+                    seen_ids.add(uid)
+                    ordered_units.append(u)
+
+        curr_idx = -1
+        for idx, u in enumerate(ordered_units):
+            if str(u.get("id")) == str(current_unit_id):
+                curr_idx = idx
+                break
+
+        if curr_idx != -1 and curr_idx + 1 < len(ordered_units):
+            next_unit = ordered_units[curr_idx + 1]
+            from ..services.job_worker import AIJobWorker
+            asyncio.create_task(AIJobWorker()._pregenerate_unit_content(workspace_id, next_unit))
+    except Exception as exc:
+        logger.warning(f"Succeeding unit pre-generation notice for workspace {workspace_id}: {exc}")
+
 @router.get("/{workspace_id}/units/{unit_id}", response_model=APIResponse[dict])
 async def get_or_generate_unit_content(
     workspace_id: str = Path(..., description="Workspace ID"),
@@ -379,6 +414,9 @@ async def get_or_generate_unit_content(
     """Retrieves cached unit content (Summary + Flashcards + Quiz) from Redis cache/MongoDB or generates on-demand via AI Service."""
     from shared.cache.redis_client import redis_cache_manager
     cache_key = f"unit_content:{workspace_id}:{unit_id}"
+
+    # Smart Pre-loading: Trigger background pre-generation for the succeeding unit (Unit N+1)
+    asyncio.create_task(_trigger_succeeding_unit_pregeneration(workspace_id, unit_id))
 
     # 1. Check Redis Cache first (sub-millisecond hit!)
     cached_payload = await redis_cache_manager.get_json_cache(cache_key)
