@@ -6,6 +6,8 @@ import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { Check, Copy, AlertCircle, Info, AlertTriangle, Lightbulb, ShieldAlert } from 'lucide-react';
 import { useThemeStore } from '../../stores/themeStore';
 import { MermaidDiagram } from './MermaidDiagram';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 
 /**
  * Normalizes input from Gemini LLM into clean, valid Markdown.
@@ -44,6 +46,9 @@ function normalizeContent(rawContent) {
   text = text
     .replace(/\\\[([\s\S]*?)\\\]/g, '\n$$\n$1\n$$\n')
     .replace(/\\\(([\s\S]*?)\\\)/g, '$$1$');
+
+  // Ensure inline $$...$$ has proper spacing for remark-math display block parsing
+  text = text.replace(/([^\n])\$\$(\s*[\s\S]*?\s*)\$\$([^\n])/g, '$1\n\n$$$$2$$\n\n$3');
 
   return text;
 }
@@ -180,7 +185,8 @@ export const MarkdownRenderer = ({ content }) => {
   return (
     <div className="markdown-body" style={{ lineHeight: 1.7, fontSize: '0.9375rem', color: 'var(--text-primary)' }}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
         components={{
           h1: ({ node, ...props }) => (
             <h1
