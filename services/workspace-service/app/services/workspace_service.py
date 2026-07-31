@@ -27,7 +27,7 @@ class WorkspaceService:
         except Exception as exc:
             logger.warning(f"Cache invalidation notice: {exc}")
 
-    async def create_workspace(self, user_id: str, payload: WorkspaceCreate) -> WorkspaceRead:
+    async def create_workspace(self, user_id: str, payload: WorkspaceCreate, email: str | None = None) -> WorkspaceRead:
         """Creates a workspace and assigns creator as owner concurrently in a single parallel roundtrip."""
         import asyncio
         from beanie import PydanticObjectId
@@ -44,6 +44,7 @@ class WorkspaceService:
         membership = Membership(
             workspace_id=str(ws_id),
             user_id=user_id,
+            email=email or user_id,
             role="owner"
         )
 
@@ -297,7 +298,7 @@ class WorkspaceService:
         }
 
     async def list_collaborators(self, user_id: str, workspace_id: str):
-        """Lists all collaborators and members of a workspace."""
+        """Lists all collaborators and members of a workspace with resolved email addresses."""
         workspace = await self.workspace_repo.get_by_id(workspace_id)
         if not workspace:
             raise NotFoundException("Workspace not found")
@@ -307,17 +308,38 @@ class WorkspaceService:
             raise ForbiddenException("You are not a member of this workspace")
 
         members = await self.membership_repo.list_by_workspace(workspace_id)
-        return [
-            {
+
+        # Batch resolve real emails from PostgreSQL identity database
+        user_ids = [m.user_id for m in members if m.user_id]
+        email_map = {}
+        if user_ids:
+            try:
+                import asyncpg
+                from shared.config import settings
+                raw_db_url = settings.identity_db_url.replace("postgresql+asyncpg://", "postgres://")
+                conn = await asyncpg.connect(raw_db_url)
+                try:
+                    rows = await conn.fetch("SELECT id::text, email FROM users WHERE id::text = ANY($1)", user_ids)
+                    for r in rows:
+                        email_map[r["id"]] = r["email"]
+                finally:
+                    await conn.close()
+            except Exception as exc:
+                logger.warning(f"Email resolution notice: {exc}")
+
+        results = []
+        for m in members:
+            resolved_email = (m.email if m.email and "@" in m.email else None) or email_map.get(m.user_id) or m.user_id
+            results.append({
                 "id": str(m.id),
                 "workspace_id": m.workspace_id,
                 "user_id": m.user_id,
-                "email": m.email or m.user_id,
+                "email": resolved_email,
                 "role": m.role,
                 "joined_at": m.joined_at,
-            }
-            for m in members
-        ]
+            })
+
+        return results
 
     async def get_collaborator(self, user_id: str, workspace_id: str, target_id_or_email: str):
         """Retrieves details of a specific collaborator in a workspace."""

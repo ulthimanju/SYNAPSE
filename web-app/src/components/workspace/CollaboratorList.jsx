@@ -138,7 +138,7 @@ export const CollaboratorList = ({ workspaceId, isOwner }) => {
                   </div>
                   <div>
                     <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {c.email || c.user_id}
+                      {c.email && c.email.includes('@') ? c.email : (c.user_id || 'Collaborator')}
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                       Joined {c.joined_at ? new Date(c.joined_at).toLocaleDateString() : 'Recently'}
