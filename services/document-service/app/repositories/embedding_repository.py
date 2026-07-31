@@ -17,16 +17,18 @@ class EmbeddingRepository:
 
         params = [
             {
-                "chunk_id": r["chunk_id"],
-                "document_id": r["document_id"],
-                "workspace_id": r["workspace_id"],
+                "chunk_id": str(r["chunk_id"]),
+                "document_id": str(r["document_id"]),
+                "workspace_id": str(r["workspace_id"]),
+                "content": r.get("content", ""),
+                "filename": r.get("filename", ""),
                 "emb": "[" + ",".join(str(f) for f in r["embedding"]) + "]"
             }
             for r in records
         ]
         sql = text("""
-            INSERT INTO document_chunk_embeddings (id, chunk_id, document_id, workspace_id, embedding, created_at)
-            VALUES (gen_random_uuid(), :chunk_id, :document_id, :workspace_id, CAST(:emb AS vector), CURRENT_TIMESTAMP)
+            INSERT INTO document_chunk_embeddings (id, chunk_id, document_id, workspace_id, content, filename, embedding, created_at)
+            VALUES (gen_random_uuid(), :chunk_id, :document_id, :workspace_id, :content, :filename, CAST(:emb AS vector), CURRENT_TIMESTAMP)
         """)
         await session.execute(sql, params)
         await session.commit()

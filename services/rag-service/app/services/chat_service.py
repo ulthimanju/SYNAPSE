@@ -49,7 +49,7 @@ class ChatService:
         retrieval_resp = await self.retrieval_service.retrieve_similar_chunks(
             workspace_id=workspace_id,
             query=query,
-            top_k=5
+            top_k=10
         )
         chunks = [r.dict() for r in retrieval_resp.results]
 

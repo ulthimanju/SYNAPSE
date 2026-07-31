@@ -61,11 +61,14 @@ class EmbeddingService:
             vector_list = self.embedding_client.generate_embeddings(chunk_texts)
 
             # 3. Prepare records for pgvector persistence
+            filename = getattr(doc, "filename", "Document")
             embedding_records = [
                 {
                     "chunk_id": str(chunks[i].id),
                     "document_id": document_id,
                     "workspace_id": workspace_id,
+                    "content": chunks[i].content,
+                    "filename": filename,
                     "embedding": vector_list[i],
                 }
                 for i in range(len(chunks))
