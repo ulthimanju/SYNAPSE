@@ -2,6 +2,7 @@ import os
 import logging
 from abc import ABC, abstractmethod
 from typing import List
+from shared.cache.redis_client import redis_cache_manager
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +13,7 @@ class BaseEmbeddingClient(ABC):
         pass
 
 class GeminiEmbeddingClient(BaseEmbeddingClient):
-    """Gemini Embedding Client generating vectors using models/gemini-embedding-001."""
+    """Gemini Embedding Client with Redis Vector Query Caching."""
     def __init__(self, api_key: str = None, model: str = None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY", "")
         self.model = model or os.getenv("EMBEDDING_MODEL", "models/gemini-embedding-001")
@@ -20,6 +21,13 @@ class GeminiEmbeddingClient(BaseEmbeddingClient):
     async def get_embedding(self, text: str) -> List[float]:
         if not text:
             return [0.0] * 768
+
+        # 1. Check Redis Cache first (sub-millisecond hit!)
+        cached_vector = await redis_cache_manager.get_embedding_cache(text, self.model)
+        if cached_vector:
+            return cached_vector
+
+        # 2. Cache miss -> Call Gemini Embedding API over network
         try:
             import google.generativeai as genai
             if self.api_key:
@@ -31,9 +39,13 @@ class GeminiEmbeddingClient(BaseEmbeddingClient):
                 output_dimensionality=768,
             )
             embedding = response.get("embedding", [])
-            if len(embedding) == 768:
-                return embedding
-            return embedding[:768] if len(embedding) > 768 else [0.0] * 768
+            vec = embedding[:768] if len(embedding) >= 768 else [0.0] * 768
+            
+            # 3. Cache generated 768-dim vector in Redis (7 days TTL)
+            if len(vec) == 768 and vec != [0.0] * 768:
+                await redis_cache_manager.set_embedding_cache(text, self.model, vec)
+
+            return vec
         except Exception as exc:
             logger.warning(f"Gemini query embedding generation notice: {exc}. Returning deterministic query vector.")
             import hashlib
