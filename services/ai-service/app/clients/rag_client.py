@@ -3,6 +3,8 @@ from typing import List, Dict, Any, Optional
 import httpx
 from shared.config.settings import settings
 
+from shared.clients.base import get_shared_httpx_client
+
 logger = logging.getLogger(__name__)
 
 class RAGServiceClient:
@@ -25,16 +27,16 @@ class RAGServiceClient:
             "top_k": top_k
         }
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                res = await client.post(url, json=payload)
-                if res.status_code == 200:
-                    data = res.json().get("data", {})
-                    results = data.get("results", [])
-                    logger.info(f"Retrieved {len(results)} RAG grounding chunks for query '{query}'")
-                    return results
-                else:
-                    logger.warning(f"RAG service returned status code {res.status_code}")
-                    return []
+            client = get_shared_httpx_client()
+            res = await client.post(url, json=payload, timeout=10.0)
+            if res.status_code == 200:
+                data = res.json().get("data", {})
+                results = data.get("results", [])
+                logger.info(f"Retrieved {len(results)} RAG grounding chunks for query '{query}'")
+                return results
+            else:
+                logger.warning(f"RAG service returned status code {res.status_code}")
+                return []
         except Exception as exc:
             logger.warning(f"Internal RAGServiceClient connection warning: {exc}")
             return []

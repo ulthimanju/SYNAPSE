@@ -4,6 +4,8 @@ import httpx
 from shared.config.settings import settings
 from shared.exceptions import NotFoundException, ServiceUnavailableException
 
+from shared.clients.base import get_shared_httpx_client
+
 logger = logging.getLogger(__name__)
 
 class DocumentServiceClient:
@@ -16,16 +18,16 @@ class DocumentServiceClient:
         """Queries internal endpoint GET /internal/workspaces/{workspace_id}/parsed-documents."""
         url = f"{self.base_url}/internal/workspaces/{workspace_id}/parsed-documents"
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                res = await client.get(url)
-                if res.status_code == 200:
-                    payload = res.json()
-                    return payload.get("data", [])
-                elif res.status_code == 404:
-                    raise NotFoundException(f"No documents found for workspace {workspace_id}")
-                else:
-                    logger.warning(f"Document service returned status {res.status_code}")
-                    return []
+            client = get_shared_httpx_client()
+            res = await client.get(url, timeout=10.0)
+            if res.status_code == 200:
+                payload = res.json()
+                return payload.get("data", [])
+            elif res.status_code == 404:
+                raise NotFoundException(f"No documents found for workspace {workspace_id}")
+            else:
+                logger.warning(f"Document service returned status {res.status_code}")
+                return []
         except Exception as exc:
             logger.warning(f"Internal DocumentServiceClient connection warning: {exc}")
             # Fallback document mock payload for standalone local dev testing

@@ -38,17 +38,16 @@ def create_access_token(
     
     return jwt.encode(to_encode, key, algorithm=alg)
 
-def decode_access_token(
-    token: str,
-    secret_key: Optional[str] = None,
-    algorithm: Optional[str] = None,
-    issuer: Optional[str] = None,
-    audience: Optional[str] = None,
-) -> Dict[str, Any]:
-    """Decodes and validates a JWT access token with clock-drift leeway."""
-    key = secret_key or DEFAULT_SECRET_KEY
-    alg = algorithm or DEFAULT_ALGORITHM
+from functools import lru_cache
 
+@lru_cache(maxsize=2048)
+def _cached_decode_token(
+    token: str,
+    secret_key: str,
+    algorithm: str,
+    issuer: Optional[str],
+    audience: Optional[str],
+) -> Dict[str, Any]:
     options = {
         "verify_signature": True,
         "verify_exp": True,
@@ -56,17 +55,33 @@ def decode_access_token(
         "verify_iss": issuer is not None,
         "verify_aud": audience is not None,
     }
+    return jwt.decode(
+        token,
+        secret_key,
+        algorithms=[algorithm],
+        options=options,
+        issuer=issuer,
+        audience=audience,
+        leeway=10,
+    )
+
+def decode_access_token(
+    token: str,
+    secret_key: Optional[str] = None,
+    algorithm: Optional[str] = None,
+    issuer: Optional[str] = None,
+    audience: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Decodes and validates a JWT access token with clock-drift leeway and sub-millisecond LRU caching."""
+    key = secret_key or DEFAULT_SECRET_KEY
+    alg = algorithm or DEFAULT_ALGORITHM
 
     try:
-        payload = jwt.decode(
-            token,
-            key,
-            algorithms=[alg],
-            options=options,
-            issuer=issuer,
-            audience=audience,
-            leeway=10,  # 10 seconds leeway for container clock drift
-        )
+        payload = _cached_decode_token(token, key, alg, issuer, audience)
+        # Verify expiration against current time for cached tokens
+        exp = payload.get("exp")
+        if exp and datetime.now(timezone.utc).timestamp() > exp:
+            raise jwt.ExpiredSignatureError("JWT access token has expired")
         return payload
     except jwt.ExpiredSignatureError:
         raise UnauthorizedException("JWT access token has expired")

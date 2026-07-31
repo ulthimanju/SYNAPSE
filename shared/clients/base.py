@@ -12,8 +12,20 @@ from .exceptions import (
 
 logger = logging.getLogger(__name__)
 
+_GLOBAL_HTTP_CLIENT: Optional[httpx.AsyncClient] = None
+
+def get_shared_httpx_client() -> httpx.AsyncClient:
+    """Returns or initializes shared singleton httpx.AsyncClient with connection pooling."""
+    global _GLOBAL_HTTP_CLIENT
+    if _GLOBAL_HTTP_CLIENT is None or _GLOBAL_HTTP_CLIENT.is_closed:
+        _GLOBAL_HTTP_CLIENT = httpx.AsyncClient(
+            timeout=15.0,
+            limits=httpx.Limits(max_keepalive_connections=50, max_connections=200)
+        )
+    return _GLOBAL_HTTP_CLIENT
+
 class BaseAsyncHTTPClient:
-    """Reusable asynchronous HTTP client base class supporting timeouts, retries, and error handling."""
+    """Reusable asynchronous HTTP client base class supporting connection pooling, timeouts, retries, and error handling."""
 
     def __init__(
         self,
@@ -22,12 +34,18 @@ class BaseAsyncHTTPClient:
         max_retries: int = 3,
         backoff_factor: float = 0.5,
         default_headers: Optional[Dict[str, str]] = None,
+        client: Optional[httpx.AsyncClient] = None,
     ):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.max_retries = max_retries
         self.backoff_factor = backoff_factor
         self.default_headers = default_headers or {}
+        self._custom_client = client
+
+    @property
+    def client(self) -> httpx.AsyncClient:
+        return self._custom_client or get_shared_httpx_client()
 
     async def _request(
         self,
@@ -42,41 +60,41 @@ class BaseAsyncHTTPClient:
 
         for attempt in range(1, self.max_retries + 1):
             try:
-                async with httpx.AsyncClient(timeout=self.timeout) as client:
-                    response = await client.request(
-                        method=method,
-                        url=url,
-                        params=params,
-                        json=json,
-                        headers=merged_headers,
+                response = await self.client.request(
+                    method=method,
+                    url=url,
+                    params=params,
+                    json=json,
+                    headers=merged_headers,
+                    timeout=self.timeout,
+                )
+
+                if response.is_success:
+                    return response.json() if response.content else {}
+
+                # Error handling
+                error_data = None
+                try:
+                    error_data = response.json()
+                except Exception:
+                    error_data = {"text": response.text}
+
+                if 400 <= response.status_code < 500:
+                    raise HTTPClientError(
+                        message=f"Client error {response.status_code} for {url}",
+                        status_code=response.status_code,
+                        response_data=error_data,
                     )
-
-                    if response.is_success:
-                        return response.json() if response.content else {}
-
-                    # Error handling
-                    error_data = None
-                    try:
-                        error_data = response.json()
-                    except Exception:
-                        error_data = {"text": response.text}
-
-                    if 400 <= response.status_code < 500:
-                        raise HTTPClientError(
-                            message=f"Client error {response.status_code} for {url}",
+                elif response.status_code >= 500:
+                    if attempt == self.max_retries:
+                        raise HTTPServerError(
+                            message=f"Server error {response.status_code} for {url}",
                             status_code=response.status_code,
                             response_data=error_data,
                         )
-                    elif response.status_code >= 500:
-                        if attempt == self.max_retries:
-                            raise HTTPServerError(
-                                message=f"Server error {response.status_code} for {url}",
-                                status_code=response.status_code,
-                                response_data=error_data,
-                            )
-                        logger.warning(
-                            f"Attempt {attempt}/{self.max_retries} failed for {url} ({response.status_code}). Retrying..."
-                        )
+                    logger.warning(
+                        f"Attempt {attempt}/{self.max_retries} failed for {url} ({response.status_code}). Retrying..."
+                    )
 
             except (HTTPClientError, HTTPServerError):
                 raise
