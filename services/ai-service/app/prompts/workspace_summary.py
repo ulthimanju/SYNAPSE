@@ -137,11 +137,6 @@ DIFFICULTY
 Estimate: Beginner | Intermediate | Advanced based on the overall complexity.
 
 =========================
-STUDY TIME
-=========================
-Estimate realistic study time considering document volume and conceptual complexity.
-
-=========================
 IMPORTANT
 =========================
 Do NOT summarize each document independently.
