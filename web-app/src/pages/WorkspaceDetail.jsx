@@ -22,7 +22,7 @@ import { FileText, Sparkles, BookOpen, MessageSquare, Users } from 'lucide-react
 export const WorkspaceDetail = () => {
   const { workspaceId } = useParams();
   const navigate = useNavigate();
-  const { activeWorkspaceId, setActiveWorkspaceId, sidebarOpen } = useAppStore();
+  const { activeWorkspaceId, setActiveWorkspaceId, sidebarOpen, learningPaths, setLearningPath: storeSetLearningPath } = useAppStore();
 
   const [activeTab, setActiveTab] = useState('documents');
   const [workspaceInfo, setWorkspaceInfo] = useState(null);
@@ -92,9 +92,19 @@ export const WorkspaceDetail = () => {
   };
 
   const fetchLearningPath = async () => {
+    // 1. Check Zustand Client Store Cache first (0 Network Calls!)
+    if (learningPaths && learningPaths[workspaceId]) {
+      setLearningPath(learningPaths[workspaceId]);
+      return;
+    }
+
     try {
       const res = await api.get(`/workspaces/${workspaceId}/learning-path`);
-      setLearningPath(res?.data?.data || res?.data || null);
+      const payload = res?.data?.data || res?.data || null;
+      setLearningPath(payload);
+      if (payload) {
+        storeSetLearningPath(workspaceId, payload);
+      }
     } catch (err) {
       setLearningPath(null);
     }

@@ -3,6 +3,7 @@ import httpx
 from fastapi import FastAPI, Request, Response, status
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from shared.config.settings import settings
 
 logger = logging.getLogger("synapse-gateway")
@@ -12,6 +13,9 @@ app = FastAPI(
     description="Central entrypoint router and reverse proxy for Synapse Microservices",
     version="1.0.0",
 )
+
+# Enable Gzip compression for payloads > 1000 bytes (reduces Knowledge Graph JSON size by 70%)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Enable CORS for web-app frontend
 app.add_middleware(

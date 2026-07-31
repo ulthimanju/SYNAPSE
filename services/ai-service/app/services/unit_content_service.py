@@ -23,15 +23,27 @@ class UnitContentService:
 
     async def generate_unit_content(self, req: UnitContentRequest) -> UnitContentResponse:
         """Pipeline: Learning Unit -> RAG Query (using Unit Title) -> Retrieve Relevant Grounding Context -> LLM -> Generate Summary, Quiz, & Flashcards."""
+        import hashlib
+        from shared.cache.redis_client import redis_cache_manager
+
         # 1. Construct RAG search query using Unit Title + Topics
         rag_query = f"{req.unit_title} {' '.join(req.topics)}"
         
-        # 2. Retrieve relevant grounding context chunks from RAG Service (pgvector)
-        rag_chunks = await self.rag_client.retrieve_grounding_context(
-            workspace_id=req.workspace_id,
-            query=rag_query,
-            top_k=5
-        )
+        # 2. Retrieve relevant grounding context chunks from Redis Cache or RAG Service (pgvector)
+        query_hash = hashlib.sha256(rag_query.encode("utf-8")).hexdigest()[:16]
+        cache_key = f"rag_chunks:{req.workspace_id}:{query_hash}"
+
+        cached_chunks = await redis_cache_manager.get_json_cache(cache_key)
+        if cached_chunks is not None and isinstance(cached_chunks, list):
+            rag_chunks = cached_chunks
+            logger.info(f"⚡ [REDIS RAG CHUNK HIT] Bypassed pgvector search for query hash '{query_hash}'")
+        else:
+            rag_chunks = await self.rag_client.retrieve_grounding_context(
+                workspace_id=req.workspace_id,
+                query=rag_query,
+                top_k=5
+            )
+            await redis_cache_manager.set_json_cache(cache_key, rag_chunks, ttl_seconds=3600)
 
         # 3. Format prompt with RAG grounding context as primary source of truth
         prompt = build_unit_content_prompt(
