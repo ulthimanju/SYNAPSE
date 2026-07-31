@@ -1,55 +1,40 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { Badge } from '../common/Badge';
 import { Alert } from '../feedback/Alert';
-import { api } from '../../services/api';
 import { UserPlus, Trash2, Crown, User, ShieldCheck } from 'lucide-react';
+import {
+  useCollaboratorsQuery,
+  useInviteCollaboratorMutation,
+  useRemoveCollaboratorMutation,
+} from '../../hooks/useWorkspacesQuery';
 
 export const CollaboratorList = ({ workspaceId, isOwner }) => {
-  const [collaborators, setCollaborators] = useState([]);
   const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [inviting, setInviting] = useState(false);
   const [notice, setNotice] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
 
-  const fetchCollaborators = async () => {
-    setLoading(true);
-    try {
-      const res = await api.get(`/workspaces/${workspaceId}/collaborators`);
-      setCollaborators(res.data?.data || []);
-    } catch (err) {
-      console.error('Failed to fetch collaborators:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (workspaceId) {
-      fetchCollaborators();
-    }
-  }, [workspaceId]);
+  const { data: collaborators = [], isLoading: loading } = useCollaboratorsQuery(workspaceId);
+  const inviteMutation = useInviteCollaboratorMutation(workspaceId);
+  const removeMutation = useRemoveCollaboratorMutation(workspaceId);
 
   const handleInvite = async (e) => {
     e.preventDefault();
     if (!email || !email.trim()) return;
-    setInviting(true);
     setNotice(null);
     setErrorMsg(null);
 
-    try {
-      await api.post(`/workspaces/${workspaceId}/collaborators`, { email: email.trim() });
-      setNotice(`Collaborator (${email.trim()}) invited successfully.`);
-      setEmail('');
-      await fetchCollaborators();
-    } catch (err) {
-      setErrorMsg(err.response?.data?.message || err.message || 'Failed to invite collaborator.');
-    } finally {
-      setInviting(false);
-    }
+    inviteMutation.mutate(email.trim(), {
+      onSuccess: () => {
+        setNotice(`Collaborator (${email.trim()}) invited successfully.`);
+        setEmail('');
+      },
+      onError: (err) => {
+        setErrorMsg(err.response?.data?.message || err.message || 'Failed to invite collaborator.');
+      },
+    });
   };
 
   const handleRemove = async (targetIdOrEmail) => {
@@ -57,13 +42,14 @@ export const CollaboratorList = ({ workspaceId, isOwner }) => {
     setNotice(null);
     setErrorMsg(null);
 
-    try {
-      await api.delete(`/workspaces/${workspaceId}/collaborators/${targetIdOrEmail}`);
-      setNotice('Collaborator removed successfully.');
-      await fetchCollaborators();
-    } catch (err) {
-      setErrorMsg(err.response?.data?.message || err.message || 'Failed to remove collaborator.');
-    }
+    removeMutation.mutate(targetIdOrEmail, {
+      onSuccess: () => {
+        setNotice('Collaborator removed successfully.');
+      },
+      onError: (err) => {
+        setErrorMsg(err.response?.data?.message || err.message || 'Failed to remove collaborator.');
+      },
+    });
   };
 
   return (
@@ -100,16 +86,20 @@ export const CollaboratorList = ({ workspaceId, isOwner }) => {
               required
             />
           </div>
-          <Button type="submit" disabled={inviting}>
+          <Button type="submit" disabled={inviteMutation.isPending}>
             <UserPlus size={16} />
-            <span>{inviting ? 'Inviting...' : 'Invite Collaborator'}</span>
+            <span>{inviteMutation.isPending ? 'Inviting...' : 'Invite Collaborator'}</span>
           </Button>
         </form>
       )}
 
       {/* Collaborator List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-        {collaborators.length === 0 ? (
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+            Loading collaborators...
+          </div>
+        ) : collaborators.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
             No collaborators added yet.
           </div>
@@ -164,6 +154,7 @@ export const CollaboratorList = ({ workspaceId, isOwner }) => {
                   {isOwner && !isMemberOwner && (
                     <button
                       onClick={() => handleRemove(c.user_id || c.email)}
+                      disabled={removeMutation.isPending}
                       style={{
                         background: 'none',
                         border: 'none',
@@ -173,6 +164,7 @@ export const CollaboratorList = ({ workspaceId, isOwner }) => {
                         borderRadius: '4px',
                         display: 'flex',
                         alignItems: 'center',
+                        opacity: removeMutation.isPending ? 0.5 : 1,
                       }}
                       title="Remove Collaborator"
                     >

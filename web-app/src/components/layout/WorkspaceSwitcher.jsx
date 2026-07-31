@@ -2,13 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ChevronDown, FolderKanban, Plus, Loader2, Trash2, Users, Crown } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
+import { useWorkspacesQuery } from '../../hooks/useWorkspacesQuery';
 import { CreateWorkspaceDialog } from '../workspace/CreateWorkspaceDialog';
 import { DeleteWorkspaceModal } from '../workspace/DeleteWorkspaceModal';
 import { api } from '../../services/api';
 
 export const WorkspaceSwitcher = () => {
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [switcherTab, setSwitcherTab] = useState('owned'); // 'owned' | 'collaborated'
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
@@ -18,40 +18,18 @@ export const WorkspaceSwitcher = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  const { data: fetchedWorkspaces = [], isLoading: loading, refetch } = useWorkspacesQuery();
   const { activeWorkspaceId, setActiveWorkspaceId, workspaces, setWorkspaces } = useAppStore();
   const navigate = useNavigate();
 
-  const fetchWorkspaces = useCallback(async (force = false) => {
-    if (workspaces.length > 0 && !force) {
-      if (!activeWorkspaceId && workspaces.length > 0) {
-        setActiveWorkspaceId(workspaces[0].id);
-      }
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await api.get('/workspaces/titles');
-      const list = res?.data?.data || res?.data || [];
-      if (Array.isArray(list)) {
-        setWorkspaces(list);
-        if (list.length > 0 && !activeWorkspaceId) {
-          setActiveWorkspaceId(list[0].id);
-        }
-      } else {
-        setWorkspaces([]);
-      }
-    } catch (err) {
-      console.error('Error loading workspaces for topbar switcher');
-      setWorkspaces([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [activeWorkspaceId, setActiveWorkspaceId, workspaces, setWorkspaces]);
-
   useEffect(() => {
-    fetchWorkspaces(true);
-  }, []);
+    if (fetchedWorkspaces && Array.isArray(fetchedWorkspaces)) {
+      setWorkspaces(fetchedWorkspaces);
+      if (fetchedWorkspaces.length > 0 && !activeWorkspaceId) {
+        setActiveWorkspaceId(fetchedWorkspaces[0].id);
+      }
+    }
+  }, [fetchedWorkspaces, activeWorkspaceId, setActiveWorkspaceId, setWorkspaces]);
 
   useEffect(() => {
     const current = workspaces.find((w) => w.id === activeWorkspaceId);
