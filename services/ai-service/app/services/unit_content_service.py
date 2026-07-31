@@ -2,8 +2,8 @@ import json
 import re
 import logging
 from typing import Optional
-from shared.exceptions import NotFoundException, ServiceUnavailableException
-from ..clients.document_client import DocumentServiceClient
+from shared.exceptions import ServiceUnavailableException
+from ..clients.rag_client import RAGServiceClient
 from ..clients.factory import get_ai_provider
 from ..prompts.unit_content import UNIT_CONTENT_SYSTEM_PROMPT, build_unit_content_prompt
 from ..schemas.unit_content import UnitContentRequest, UnitContentResponse, UnitFlashcard, UnitQuiz, UnitQuizQuestion
@@ -11,29 +11,38 @@ from ..schemas.unit_content import UnitContentRequest, UnitContentResponse, Unit
 logger = logging.getLogger(__name__)
 
 class UnitContentService:
-    """Service handling concept-specific Summary + Flashcards + Quiz generation for a target Learning Unit."""
+    """Service handling RAG-grounded Summary + Flashcards + Quiz generation for a target Learning Unit."""
 
     def __init__(
         self,
-        doc_client: Optional[DocumentServiceClient] = None,
+        rag_client: Optional[RAGServiceClient] = None,
         ai_provider=None
     ):
-        self.doc_client = doc_client or DocumentServiceClient()
+        self.rag_client = rag_client or RAGServiceClient()
         self.ai_provider = ai_provider or get_ai_provider()
 
     async def generate_unit_content(self, req: UnitContentRequest) -> UnitContentResponse:
-        """Retrieves workspace documents, formats unit prompt, calls Gemini Direct Engine, and returns structured unit content."""
-        documents = await self.doc_client.get_parsed_documents(req.workspace_id)
-        if not documents:
-            documents = [{"title": "Workspace Context", "markdown": f"# {req.unit_title}\n\nTopics: {', '.join(req.topics)}"}]
+        """Pipeline: Learning Unit -> RAG Query (using Unit Title) -> Retrieve Relevant Grounding Context -> LLM -> Generate Summary, Quiz, & Flashcards."""
+        # 1. Construct RAG search query using Unit Title + Topics
+        rag_query = f"{req.unit_title} {' '.join(req.topics)}"
+        
+        # 2. Retrieve relevant grounding context chunks from RAG Service (pgvector)
+        rag_chunks = await self.rag_client.retrieve_grounding_context(
+            workspace_id=req.workspace_id,
+            query=rag_query,
+            top_k=5
+        )
 
+        # 3. Format prompt with RAG grounding context as primary source of truth
         prompt = build_unit_content_prompt(
             unit_title=req.unit_title,
             topics=req.topics,
             learning_objectives=req.learning_objectives,
-            documents=documents
+            rag_chunks=rag_chunks,
+            position=getattr(req, "position", None)
         )
 
+        # 4. Generate structured content via LLM (Gemini 3.6 Flash with 2.5 Flash fallback)
         try:
             raw_json_str = await self.ai_provider.generate_structured(
                 prompt=prompt,
@@ -96,7 +105,7 @@ class UnitContentService:
                         )
                     )
         except Exception as exc:
-            logger.error(f"Gemini unit content generation error: {exc}")
-            raise ServiceUnavailableException(f"Failed to generate AI unit content: {exc}")
+            logger.error(f"Gemini RAG unit content generation error: {exc}")
+            raise ServiceUnavailableException(f"Failed to generate RAG unit content: {exc}")
 
         raise ServiceUnavailableException("AI Provider returned empty structured payload for unit content.")

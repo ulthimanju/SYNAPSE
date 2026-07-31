@@ -3,6 +3,7 @@ import logging
 from typing import Optional
 from shared.exceptions import NotFoundException
 from ..clients.workspace_client import WorkspaceServiceClient
+from ..clients.rag_client import RAGServiceClient
 from ..clients.factory import get_ai_provider
 from ..prompts.quizzes import QUIZZES_SYSTEM_PROMPT, build_quizzes_prompt
 from ..schemas.quizzes import QuizzesResponse, QuizQuestion
@@ -10,37 +11,52 @@ from ..schemas.quizzes import QuizzesResponse, QuizQuestion
 logger = logging.getLogger(__name__)
 
 class QuizService:
-    """Service layer handling AI Quiz generation."""
+    """Service layer handling AI Quiz generation with RAG context grounding."""
 
     def __init__(
         self,
         ws_client: Optional[WorkspaceServiceClient] = None,
+        rag_client: Optional[RAGServiceClient] = None,
         ai_provider=None
     ):
         self.ws_client = ws_client or WorkspaceServiceClient()
+        self.rag_client = rag_client or RAGServiceClient()
         self.ai_provider = ai_provider or get_ai_provider()
 
     async def generate_quiz(self, workspace_id: str) -> QuizzesResponse:
-        """Retrieves cached learning path & flashcards via REST, formats prompt, calls Gemini 2.5 Flash, and returns structured quiz assessment."""
+        """Retrieves learning path, queries RAG service for grounding context, calls Gemini, and returns RAG-grounded quiz assessment."""
         # 1. Retrieve cached learning path & flashcards via REST
         learning_path = await self.ws_client.get_workspace_learning_path(workspace_id)
         cards_payload = await self.ws_client.get_workspace_flashcards(workspace_id)
-        flashcards = cards_payload.get("flashcards", [])
+        flashcards = cards_payload.get("flashcards", []) if isinstance(cards_payload, dict) else []
 
         if not learning_path:
             raise NotFoundException(f"No learning path available for workspace {workspace_id}")
 
-        # 2. Format prompt
-        prompt = build_quizzes_prompt(workspace_id, learning_path, flashcards)
+        # 2. Extract unit titles for RAG query
+        title = learning_path.get("title", "Workspace Subject")
+        units = learning_path.get("units", [])
+        unit_titles = [u.get("title", "") for u in units if u.get("title")]
+        rag_query = f"{title} {' '.join(unit_titles)}"
 
-        # 3. Call Gemini 2.5 Flash structured generation
+        # 3. Retrieve grounding chunks via RAG Service (pgvector)
+        rag_chunks = await self.rag_client.retrieve_grounding_context(
+            workspace_id=workspace_id,
+            query=rag_query,
+            top_k=6
+        )
+
+        # 4. Format prompt with RAG grounding context
+        prompt = build_quizzes_prompt(workspace_id, learning_path, flashcards, rag_chunks=rag_chunks)
+
+        # 5. Call Gemini structured generation
         raw_json_str = await self.ai_provider.generate_structured(
             prompt=prompt,
             schema=None,
             system_instruction=QUIZZES_SYSTEM_PROMPT
         )
 
-        # 4. Parse JSON & validate response schema
+        # 6. Parse JSON & validate response schema
         try:
             cleaned_str = raw_json_str.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
             data = json.loads(cleaned_str)
@@ -82,47 +98,17 @@ class QuizService:
                 QuizQuestion(
                     id="q-2",
                     unit_id="unit-2",
-                    question="What is the primary function of LlamaParse in the ingestion pipeline?",
+                    question="What role does RAG grounding play in LLM quiz generation?",
                     options=[
-                        "Generating vector embeddings",
-                        "Converting complex document layouts into structured Markdown",
-                        "Storing raw PDF bytes",
-                        "Publishing WebSocket messages"
+                        "Eliminates hallucinated question options by referencing real source chunks",
+                        "Compresses JPEG images",
+                        "Deletes obsolete PostgreSQL rows",
+                        "Generates CSS themes"
                     ],
-                    correct_answer="Converting complex document layouts into structured Markdown",
-                    explanation="LlamaParse transforms unstructured document formats into clean, structured Markdown.",
+                    correct_answer="Eliminates hallucinated question options by referencing real source chunks",
+                    explanation="RAG grounding provides factual source context directly to the LLM.",
                     difficulty="Medium",
-                    learning_objective="Process LlamaParse Markdown"
-                ),
-                QuizQuestion(
-                    id="q-3",
-                    unit_id="unit-3",
-                    question="Where are the 768-dimensional Gemini embedding vectors persisted?",
-                    options=[
-                        "MongoDB Beanie collection",
-                        "PostgreSQL table with pgvector",
-                        "Redis cache",
-                        "MinIO object storage"
-                    ],
-                    correct_answer="PostgreSQL table with pgvector",
-                    explanation="PostgreSQL with the pgvector extension serves as the single source of truth for vector embeddings.",
-                    difficulty="Medium",
-                    learning_objective="Persist vectors in PostgreSQL"
-                ),
-                QuizQuestion(
-                    id="q-4",
-                    unit_id="unit-4",
-                    question="How does the AI Service enforce predictable response formats from Gemini 2.5 Flash?",
-                    options=[
-                        "By requiring strict JSON schema output in system prompts",
-                        "By regex searching raw text",
-                        "By running pythoneval",
-                        "By using binary RPC"
-                    ],
-                    correct_answer="By requiring strict JSON schema output in system prompts",
-                    explanation="System instructions strictly constrain Gemini to output type-safe JSON objects.",
-                    difficulty="Hard",
-                    learning_objective="Construct structured prompts"
+                    learning_objective="Enforce RAG Grounding"
                 )
             ]
             return QuizzesResponse(workspace_id=workspace_id, questions=fallback_questions)
