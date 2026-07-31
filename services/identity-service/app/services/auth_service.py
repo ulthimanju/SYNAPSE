@@ -1,7 +1,9 @@
 import uuid
+import logging
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from shared.auth import create_access_token
+from shared.cache.redis_client import redis_cache_manager
 from shared.exceptions import NotFoundException, BadRequestException
 from ..repositories.user_repository import UserRepository
 from ..repositories.role_repository import RoleRepository
@@ -9,8 +11,10 @@ from ..clients.google import GoogleOAuthClient
 from ..schemas.auth import GoogleAuthUrlResponse, TokenResponse, GoogleProfile
 from ..schemas.user import UserRead
 
+logger = logging.getLogger(__name__)
+
 class AuthService:
-    """Service layer handling Authentication & User Provisioning."""
+    """Service layer handling Authentication & User Provisioning with Redis & JWT optimizations."""
 
     def __init__(self, session: AsyncSession, google_client: Optional[GoogleOAuthClient] = None):
         self.session = session
@@ -24,14 +28,11 @@ class AuthService:
         return GoogleAuthUrlResponse(auth_url=url, state=state)
 
     async def handle_google_callback(self, code: str, redirect_uri: str) -> TokenResponse:
-        """Processes Google OAuth callback code, provisions user if missing, and issues Synapse JWT."""
-        # 1. Exchange code for Google token
-        google_access_token = await self.google_client.exchange_code_for_token(code=code, redirect_uri=redirect_uri)
+        """Processes Google OAuth callback code, decodes id_token JWT directly, provisions user if missing, and issues Synapse JWT."""
+        # 1. Exchange code for Google token and extract user profile directly from id_token (bypasses 2nd HTTP API call)
+        google_access_token, profile = await self.google_client.exchange_code_and_get_profile(code=code, redirect_uri=redirect_uri)
 
-        # 2. Get user info
-        profile: GoogleProfile = await self.google_client.get_user_info(access_token=google_access_token)
-
-        # 3. Lookup user or create new user
+        # 2. Lookup user or create new user
         user = await self.user_repo.get_user_by_email(email=profile.email)
         if not user:
             student_role = await self.role_repo.get_role_by_name("student")
@@ -51,7 +52,7 @@ class AuthService:
 
         await self.session.commit()
 
-        # 4. Issue Synapse JWT Access & Refresh Tokens
+        # 3. Issue Synapse JWT Access & Refresh Tokens
         role_names = [r.name for r in user.roles]
         token_data = {
             "sub": str(user.id),
@@ -63,6 +64,15 @@ class AuthService:
         refresh_token = create_access_token(data={"sub": str(user.id), "type": "refresh"})
 
         user_read = UserRead.model_validate(user)
+
+        # 4. Cache user profile in Redis for fast /auth/me lookups (15-min TTL)
+        try:
+            client = await redis_cache_manager.get_client()
+            await client.set(f"user_profile:{str(user.id)}", user_read.model_dump_json(), ex=900)
+            logger.info(f"💾 [REDIS PROFILE CACHED] Cached user profile for '{user.email}' (15m TTL)")
+        except Exception as exc:
+            logger.warning(f"Redis profile cache save notice: {exc}")
+
         return TokenResponse(
             access_token=access_token,
             refresh_token=refresh_token,
@@ -72,7 +82,18 @@ class AuthService:
         )
 
     async def get_current_user_profile(self, user_id_str: str) -> UserRead:
-        """Returns UserRead profile for current authenticated user ID."""
+        """Returns UserRead profile for current authenticated user ID, leveraging Redis caching."""
+        # 1. Check Redis cache first (sub-millisecond hit!)
+        try:
+            client = await redis_cache_manager.get_client()
+            cached_json = await client.get(f"user_profile:{user_id_str}")
+            if cached_json:
+                logger.info(f"⚡ [REDIS PROFILE CACHE HIT] Bypassed SQL query for user ID '{user_id_str[:8]}'")
+                return UserRead.model_validate_json(cached_json)
+        except Exception as exc:
+            logger.warning(f"Redis profile cache lookup notice: {exc}")
+
+        # 2. Database lookup on cache miss
         try:
             uid = uuid.UUID(user_id_str)
             user = await self.user_repo.get_user_by_id(uid)
@@ -82,4 +103,13 @@ class AuthService:
         if not user:
             raise NotFoundException("User profile not found")
 
-        return UserRead.model_validate(user)
+        user_read = UserRead.model_validate(user)
+
+        # 3. Cache user profile in Redis for 15 minutes (900 seconds)
+        try:
+            client = await redis_cache_manager.get_client()
+            await client.set(f"user_profile:{user_id_str}", user_read.model_dump_json(), ex=900)
+        except Exception as exc:
+            logger.warning(f"Redis profile cache save notice: {exc}")
+
+        return user_read
