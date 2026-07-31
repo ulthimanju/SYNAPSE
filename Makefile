@@ -2,15 +2,15 @@
 
 help:
 	@echo "Synapse Monorepo Commands:"
-	@echo "  make dev      Start development environment"
+	@echo "  make dev      Start Synapse containers (single compose)"
 	@echo "  make build    Build docker containers"
 	@echo "  make test     Run tests across all services"
 
 dev:
-	docker compose -f docker-compose.dev.yml up --build
+	docker compose up -d --build
 
 build:
-	docker compose -f docker-compose.yml build
+	docker compose build
 
 test:
 	pytest

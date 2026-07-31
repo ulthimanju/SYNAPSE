@@ -230,7 +230,7 @@ services:
   web-app:
     build:
       context: ./web-app
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     container_name: synapse-web-app
     restart: unless-stopped
     ports:
