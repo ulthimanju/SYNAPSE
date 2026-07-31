@@ -5,18 +5,19 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app
 
-# Install system dependencies (ca-certificates for HTTPS, curl for healthchecks)
+# Install system dependencies
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        ca-certificates \
-        curl && \
+    apt-get install -y --no-install-recommends ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
+# Security best practice: Create non-root user early
+RUN useradd --create-home --shell /bin/bash appuser
+
 # Upgrade pip and install pinned Python dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir \
+RUN pip install --no-cache-dir --no-compile --upgrade pip && \
+    pip install --no-cache-dir --no-compile \
         email-validator==2.3.0 \
         fastapi==0.141.1 \
         httpx==0.28.1 \
@@ -28,20 +29,16 @@ RUN pip install --no-cache-dir --upgrade pip && \
         redis==8.1.0 \
         uvicorn==0.52.0
 
-# Copy application source code
-COPY shared ./shared
-COPY gateway ./service
-
-# Security best practice: Create non-root user and assign directory permissions
-RUN useradd --create-home --shell /bin/bash appuser && \
-    chown -R appuser:appuser /app
+# Copy application source code with user ownership
+COPY --chown=appuser:appuser shared ./shared
+COPY --chown=appuser:appuser gateway ./service
 
 USER appuser
 
 EXPOSE 8000
 
-# Container Healthcheck
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+# Container Healthcheck using standard library urllib
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
 
-CMD ["uvicorn", "service.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "service.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
