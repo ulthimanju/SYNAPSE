@@ -7,7 +7,7 @@ from .models import AuthenticatedUser
 
 DEFAULT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your_super_secret_jwt_key_here")
 DEFAULT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-DEFAULT_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+DEFAULT_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "43200"))
 
 def create_access_token(
     data: Dict[str, Any],
