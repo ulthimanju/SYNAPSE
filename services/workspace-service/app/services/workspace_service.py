@@ -28,18 +28,29 @@ class WorkspaceService:
             logger.warning(f"Cache invalidation notice: {exc}")
 
     async def create_workspace(self, user_id: str, payload: WorkspaceCreate) -> WorkspaceRead:
-        """Creates a workspace and assigns the creator as owner in memberships."""
-        workspace = await self.workspace_repo.create(
+        """Creates a workspace and assigns creator as owner concurrently in a single parallel roundtrip."""
+        import asyncio
+        from beanie import PydanticObjectId
+        from ..models.workspace import Workspace
+        from ..models.membership import Membership
+
+        ws_id = PydanticObjectId()
+        workspace = Workspace(
+            id=ws_id,
             name=payload.name,
             owner_id=user_id,
             is_shared=payload.is_shared,
         )
-
-        # Automatically create owner membership record
-        await self.membership_repo.create(
-            workspace_id=str(workspace.id),
+        membership = Membership(
+            workspace_id=str(ws_id),
             user_id=user_id,
             role="owner"
+        )
+
+        # Execute both MongoDB inserts concurrently in parallel (single network roundtrip)
+        await asyncio.gather(
+            workspace.insert(),
+            membership.insert(),
         )
 
         # Invalidate Redis cache for user
