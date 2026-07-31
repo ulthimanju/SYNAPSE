@@ -258,6 +258,14 @@ class AIJobWorker:
                 except Exception:
                     pass
 
+            # Invalidate Redis Learning Path cache on fresh generation
+            try:
+                from shared.cache.redis_client import redis_cache_manager
+                await redis_cache_manager.delete_cache(f"lp_cache:{ws_id}")
+                logger.info(f"🧹 [REDIS CACHE INVALIDATED] Cleared lp_cache for workspace '{ws_id[:8]}'")
+            except Exception as cache_exc:
+                logger.warning(f"Learning path cache invalidation notice: {cache_exc}")
+
         elif job.job_type == "FLASHCARDS":
             cards_data = [
                 {

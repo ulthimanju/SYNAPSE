@@ -319,12 +319,21 @@ async def get_workspace_learning_path(
     workspace_id: str = Path(..., description="Workspace ID"),
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> APIResponse[dict]:
-    """Retrieves cached learning path and hierarchical knowledge graph from MongoDB."""
+    """Retrieves cached learning path and hierarchical knowledge graph from Redis cache or MongoDB."""
+    from shared.cache.redis_client import redis_cache_manager
+    cache_key = f"lp_cache:{workspace_id}"
+
+    # 1. Check Redis Cache first (sub-millisecond hit!)
+    cached_payload = await redis_cache_manager.get_json_cache(cache_key)
+    if cached_payload is not None and isinstance(cached_payload, dict):
+        return APIResponse(message="Workspace learning path retrieved from Redis cache.", data=cached_payload)
+
+    # 2. Query MongoDB on cache miss
     lp = await LearningPath.find_one(LearningPath.workspace_id == workspace_id)
     if not lp:
         raise NotFoundException("No learning path generated yet for this workspace")
 
-    return APIResponse(message="Workspace learning path retrieved.", data={
+    payload = {
         "id": str(lp.id),
         "workspace_id": lp.workspace_id,
         "title": lp.title,
@@ -335,7 +344,12 @@ async def get_workspace_learning_path(
         "learning_paths": getattr(lp, "learning_paths", []),
         "units": lp.units,
         "version": lp.version,
-    })
+    }
+
+    # 3. Cache result in Redis for 7 days (604800s)
+    await redis_cache_manager.set_json_cache(cache_key, payload, ttl_seconds=604800)
+
+    return APIResponse(message="Workspace learning path retrieved.", data=payload)
 
 @router.get("/internal/workspaces/{workspace_id}/learning-path", response_model=APIResponse[dict])
 async def get_internal_workspace_learning_path(
