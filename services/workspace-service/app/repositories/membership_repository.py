@@ -42,6 +42,17 @@ class MembershipRepository:
     async def list_by_workspace(self, workspace_id: str) -> List[Membership]:
         return await Membership.find(Membership.workspace_id == workspace_id).to_list()
 
+    async def update_role(self, workspace_id: str, user_id_or_email: str, new_role: str) -> Optional[Membership]:
+        membership = await Membership.find_one(
+            Membership.workspace_id == workspace_id,
+            Or(Membership.user_id == user_id_or_email, Membership.email == user_id_or_email)
+        )
+        if membership:
+            membership.role = new_role
+            await membership.save()
+            return membership
+        return None
+
     async def delete_member(self, workspace_id: str, user_id_or_email: str) -> bool:
         membership = await Membership.find_one(
             Membership.workspace_id == workspace_id,

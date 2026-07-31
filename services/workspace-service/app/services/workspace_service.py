@@ -294,6 +294,58 @@ class WorkspaceService:
             for m in members
         ]
 
+    async def get_collaborator(self, user_id: str, workspace_id: str, target_id_or_email: str):
+        """Retrieves details of a specific collaborator in a workspace."""
+        workspace = await self.workspace_repo.get_by_id(workspace_id)
+        if not workspace:
+            raise NotFoundException("Workspace not found")
+
+        membership = await self.membership_repo.get_membership(workspace_id, user_id)
+        if workspace.owner_id != user_id and not membership:
+            raise ForbiddenException("You are not a member of this workspace")
+
+        target_mem = await self.membership_repo.get_membership(workspace_id, target_id_or_email)
+        if not target_mem:
+            raise NotFoundException("Collaborator not found in this workspace")
+
+        return {
+            "id": str(target_mem.id),
+            "workspace_id": target_mem.workspace_id,
+            "user_id": target_mem.user_id,
+            "email": target_mem.email or target_mem.user_id,
+            "role": target_mem.role,
+            "joined_at": target_mem.joined_at,
+        }
+
+    async def update_collaborator_role(self, owner_id: str, workspace_id: str, target_id_or_email: str, new_role: str):
+        """Updates a collaborator's role (collaborator or owner). Restricted to workspace owner."""
+        workspace = await self.workspace_repo.get_by_id(workspace_id)
+        if not workspace:
+            raise NotFoundException("Workspace not found")
+
+        if workspace.owner_id != owner_id:
+            raise ForbiddenException("Only the workspace owner can update collaborator roles")
+
+        if target_id_or_email == workspace.owner_id:
+            raise BadRequestException("Cannot modify primary workspace owner role")
+
+        updated_mem = await self.membership_repo.update_role(workspace_id, target_id_or_email, new_role)
+        if not updated_mem:
+            raise NotFoundException("Collaborator not found in this workspace")
+
+        await self._invalidate_user_workspace_cache(updated_mem.user_id)
+        if updated_mem.email:
+            await self._invalidate_user_workspace_cache(updated_mem.email)
+
+        return {
+            "id": str(updated_mem.id),
+            "workspace_id": updated_mem.workspace_id,
+            "user_id": updated_mem.user_id,
+            "email": updated_mem.email or updated_mem.user_id,
+            "role": updated_mem.role,
+            "joined_at": updated_mem.joined_at,
+        }
+
     async def remove_collaborator(self, owner_id: str, workspace_id: str, target_id_or_email: str) -> bool:
         """Removes a collaborator from the workspace. Restricted to workspace owner."""
         workspace = await self.workspace_repo.get_by_id(workspace_id)

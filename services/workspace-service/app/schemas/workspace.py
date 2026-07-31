@@ -16,7 +16,11 @@ class WorkspaceUpdate(BaseModel):
 class CollaboratorInvite(BaseModel):
     """Schema for inviting a collaborator to a workspace."""
     email: str = Field(..., description="Email of the user to invite")
-    role: str = Field(default="collaborator", description="Role: 'collaborator'")
+    role: str = Field(default="collaborator", description="Role: 'collaborator' or 'owner'")
+
+class CollaboratorUpdate(BaseModel):
+    """Schema for updating a collaborator's role."""
+    role: str = Field(..., description="Role: 'owner' or 'collaborator'")
 
 class CollaboratorRead(BaseModel):
     """Schema for reading collaborator info."""

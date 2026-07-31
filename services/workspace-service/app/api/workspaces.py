@@ -707,7 +707,7 @@ async def get_generation_job_status(
         "steps": getattr(job, "steps", []),
     })
 
-# --- Collaborators Management Endpoints ---
+# --- Collaborators Management Endpoints (Full CRUD Suite) ---
 
 @router.post("/{workspace_id}/collaborators", response_model=APIResponse[dict], status_code=status.HTTP_201_CREATED)
 async def invite_collaborator(
@@ -716,7 +716,7 @@ async def invite_collaborator(
     current_user: AuthenticatedUser = Depends(get_current_user),
     service: WorkspaceService = Depends(get_workspace_service),
 ) -> APIResponse[dict]:
-    """Invites a collaborator to the workspace by email (Owner only)."""
+    """[CREATE] Invites a collaborator to the workspace by email (Owner only)."""
     result = await service.invite_collaborator(
         owner_id=current_user.user_id,
         workspace_id=workspace_id,
@@ -731,9 +731,37 @@ async def list_collaborators(
     current_user: AuthenticatedUser = Depends(get_current_user),
     service: WorkspaceService = Depends(get_workspace_service),
 ) -> APIResponse[List[dict]]:
-    """Lists all collaborators and members of a workspace."""
+    """[READ ALL] Lists all collaborators and members of a workspace."""
     result = await service.list_collaborators(user_id=current_user.user_id, workspace_id=workspace_id)
     return APIResponse(message="Workspace collaborators retrieved.", data=result)
+
+@router.get("/{workspace_id}/collaborators/{collaborator_id}", response_model=APIResponse[dict])
+async def get_collaborator(
+    workspace_id: str = Path(..., description="Workspace ID"),
+    collaborator_id: str = Path(..., description="Collaborator User ID or Email"),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    service: WorkspaceService = Depends(get_workspace_service),
+) -> APIResponse[dict]:
+    """[READ SINGLE] Retrieves details of a specific collaborator in a workspace."""
+    result = await service.get_collaborator(user_id=current_user.user_id, workspace_id=workspace_id, target_id_or_email=collaborator_id)
+    return APIResponse(message="Collaborator details retrieved.", data=result)
+
+@router.patch("/{workspace_id}/collaborators/{collaborator_id}", response_model=APIResponse[dict])
+async def update_collaborator_role(
+    payload: CollaboratorUpdate,
+    workspace_id: str = Path(..., description="Workspace ID"),
+    collaborator_id: str = Path(..., description="Collaborator User ID or Email"),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    service: WorkspaceService = Depends(get_workspace_service),
+) -> APIResponse[dict]:
+    """[UPDATE] Updates a collaborator's role ('collaborator' or 'owner') (Owner only)."""
+    result = await service.update_collaborator_role(
+        owner_id=current_user.user_id,
+        workspace_id=workspace_id,
+        target_id_or_email=collaborator_id,
+        new_role=payload.role
+    )
+    return APIResponse(message="Collaborator role updated successfully.", data=result)
 
 @router.delete("/{workspace_id}/collaborators/{collaborator_id}", response_model=APIResponse[dict])
 async def remove_collaborator(
@@ -742,7 +770,7 @@ async def remove_collaborator(
     current_user: AuthenticatedUser = Depends(get_current_user),
     service: WorkspaceService = Depends(get_workspace_service),
 ) -> APIResponse[dict]:
-    """Removes a collaborator from the workspace (Owner only)."""
+    """[DELETE] Removes a collaborator from the workspace (Owner only)."""
     await service.remove_collaborator(owner_id=current_user.user_id, workspace_id=workspace_id, target_id_or_email=collaborator_id)
     return APIResponse(message="Collaborator removed successfully.", data={"removed": True})
 
