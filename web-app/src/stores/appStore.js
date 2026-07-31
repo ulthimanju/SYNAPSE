@@ -16,4 +16,5 @@ export const useAppStore = create((set) => ({
     set((state) => ({ notifications: [...state.notifications, { id: Date.now(), ...notification }] })),
   removeNotification: (id) =>
     set((state) => ({ notifications: state.notifications.filter((n) => n.id !== id) })),
+  resetAppStore: () => set({ activeWorkspaceId: null, workspaces: [], notifications: [], learningPaths: {} }),
 }));

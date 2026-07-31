@@ -50,7 +50,7 @@ export const WorkspaceSwitcher = () => {
   }, [activeWorkspaceId, setActiveWorkspaceId, workspaces, setWorkspaces]);
 
   useEffect(() => {
-    fetchWorkspaces();
+    fetchWorkspaces(true);
   }, []);
 
   useEffect(() => {
