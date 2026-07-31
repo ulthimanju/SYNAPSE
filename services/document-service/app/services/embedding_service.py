@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import List, Optional, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from shared.database import vectors_postgres_manager
 from ..repositories.document_repository import DocumentRepository

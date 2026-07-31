@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional
+from typing import List, Optional, Any
 from ..repositories.document_repository import DocumentRepository
 from ..repositories.parsed_document_repository import ParsedDocumentRepository
 from ..storage.minio_client import MinIOStorageService
