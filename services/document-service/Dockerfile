@@ -1,16 +1,62 @@
 FROM python:3.11-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends qpdf && rm -rf /var/lib/apt/lists/*
+# Prevent bytecode creation and buffer outputs immediately
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app
+
+# Install system dependencies (qpdf for PDF processing, ca-certificates for HTTPS, curl for healthchecks)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        qpdf \
+        ca-certificates \
+        curl && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY pyproject.toml .
-RUN pip install --no-cache-dir fastapi uvicorn pydantic pydantic-settings PyJWT email-validator httpx python-jose[cryptography] passlib[bcrypt] beanie==1.28.0 motor asyncpg sqlalchemy pgvector redis pika aio-pika python-multipart pypdf pikepdf google-generativeai llama-parse llama-index-core minio
+# Upgrade pip and install pinned Python dependencies
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+        aio-pika==10.0.1 \
+        asyncpg==0.31.0 \
+        beanie==1.28.0 \
+        email-validator==2.3.0 \
+        fastapi==0.141.1 \
+        google-generativeai==0.8.6 \
+        httpx==0.28.1 \
+        llama-index-core==0.14.23 \
+        llama-parse==0.6.94 \
+        minio==7.2.20 \
+        motor==3.7.1 \
+        passlib[bcrypt]==1.7.4 \
+        pgvector==0.5.0 \
+        pika==1.4.2 \
+        pikepdf==10.10.0 \
+        pydantic==2.13.4 \
+        pydantic-settings==2.14.2 \
+        PyJWT==2.13.0 \
+        pypdf==6.14.2 \
+        python-jose[cryptography]==3.5.0 \
+        python-multipart==0.0.32 \
+        redis==8.1.0 \
+        sqlalchemy==2.0.51 \
+        uvicorn==0.52.0
 
+# Copy application source code
 COPY shared ./shared
 COPY services/document-service ./service
 
-ENV PYTHONPATH=/app
+# Security best practice: Create non-root user and assign directory permissions
+RUN useradd --create-home --shell /bin/bash appuser && \
+    chown -R appuser:appuser /app
+
+USER appuser
 
 EXPOSE 8003
+
+# Container Healthcheck
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8003/health || exit 1
+
 CMD ["uvicorn", "service.app.main:app", "--host", "0.0.0.0", "--port", "8003"]
