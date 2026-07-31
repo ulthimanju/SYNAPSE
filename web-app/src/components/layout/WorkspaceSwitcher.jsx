@@ -18,18 +18,18 @@ export const WorkspaceSwitcher = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const { data: fetchedWorkspaces = [], isLoading: loading, refetch } = useWorkspacesQuery();
-  const { activeWorkspaceId, setActiveWorkspaceId, workspaces, setWorkspaces } = useAppStore();
+  const { data: workspaces = [], isLoading: loading, refetch } = useWorkspacesQuery();
+  const { activeWorkspaceId, setActiveWorkspaceId } = useAppStore();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (fetchedWorkspaces && Array.isArray(fetchedWorkspaces)) {
-      setWorkspaces(fetchedWorkspaces);
-      if (fetchedWorkspaces.length > 0 && !activeWorkspaceId) {
-        setActiveWorkspaceId(fetchedWorkspaces[0].id);
+    if (workspaces && workspaces.length > 0) {
+      const isValidActive = workspaces.some((w) => w.id === activeWorkspaceId);
+      if (!activeWorkspaceId || !isValidActive) {
+        setActiveWorkspaceId(workspaces[0].id);
       }
     }
-  }, [fetchedWorkspaces, activeWorkspaceId, setActiveWorkspaceId, setWorkspaces]);
+  }, [workspaces, activeWorkspaceId, setActiveWorkspaceId]);
 
   useEffect(() => {
     const current = workspaces.find((w) => w.id === activeWorkspaceId);
@@ -59,7 +59,7 @@ export const WorkspaceSwitcher = () => {
     try {
       await api.delete(`/workspaces/${targetDeleteWs.id}`);
       const updatedList = workspaces.filter((w) => w.id !== targetDeleteWs.id);
-      setWorkspaces(updatedList);
+      await refetch();
 
       if (targetDeleteWs.id === activeWorkspaceId) {
         if (updatedList.length > 0) {
@@ -87,7 +87,7 @@ export const WorkspaceSwitcher = () => {
       const res = await api.post('/workspaces', formData);
       const newWs = res?.data?.data || res?.data;
       if (newWs?.id) {
-        setWorkspaces([newWs, ...workspaces]);
+        await refetch();
         setActiveWorkspaceId(newWs.id);
         setIsDialogOpen(false);
         navigate(`/workspaces/${newWs.id}`);
