@@ -111,6 +111,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+      - path: ./services/identity-service/.env
+        required: false
     ports:
       - "8001:8001"
     depends_on:
@@ -130,6 +132,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+      - path: ./services/workspace-service/.env
+        required: false
     ports:
       - "8002:8002"
     depends_on:
@@ -149,6 +153,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+      - path: ./services/document-service/.env
+        required: false
     ports:
       - "8003:8003"
     depends_on:
@@ -172,6 +178,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+      - path: ./services/ai-service/.env
+        required: false
     ports:
       - "8004:8004"
     depends_on:
@@ -189,6 +197,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+      - path: ./services/rag-service/.env
+        required: false
     ports:
       - "8005:8005"
     depends_on:
@@ -208,6 +218,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+      - path: ./gateway/.env
+        required: false
     ports:
       - "8000:8000"
     depends_on:
