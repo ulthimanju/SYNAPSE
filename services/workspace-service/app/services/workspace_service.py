@@ -32,7 +32,7 @@ class WorkspaceService:
         workspace = await self.workspace_repo.create(
             name=payload.name,
             owner_id=user_id,
-            visibility=payload.visibility,
+            is_shared=payload.is_shared,
         )
 
         # Automatically create owner membership record
@@ -49,7 +49,7 @@ class WorkspaceService:
             id=str(workspace.id),
             name=workspace.name,
             owner_id=workspace.owner_id,
-            visibility=workspace.visibility,
+            is_shared=workspace.is_shared,
             is_archived=workspace.is_archived,
             role="owner",
             is_owner=True,
@@ -85,7 +85,7 @@ class WorkspaceService:
                     id=str(ws.id),
                     name=ws.name,
                     owner_id=ws.owner_id,
-                    visibility=ws.visibility,
+                    is_shared=getattr(ws, "is_shared", False),
                     is_archived=ws.is_archived,
                     role=role,
                     is_owner=is_owner,
@@ -127,7 +127,7 @@ class WorkspaceService:
             id=str(workspace.id),
             name=workspace.name,
             owner_id=workspace.owner_id,
-            visibility=workspace.visibility,
+            is_shared=getattr(workspace, "is_shared", False),
             is_archived=workspace.is_archived,
             role=role,
             is_owner=is_owner,
@@ -151,7 +151,7 @@ class WorkspaceService:
         updated_ws = await self.workspace_repo.update(
             workspace,
             name=payload.name,
-            visibility=payload.visibility,
+            is_shared=payload.is_shared,
             is_archived=payload.is_archived,
         )
 
@@ -162,7 +162,7 @@ class WorkspaceService:
             id=str(updated_ws.id),
             name=updated_ws.name,
             owner_id=updated_ws.owner_id,
-            visibility=updated_ws.visibility,
+            is_shared=getattr(updated_ws, "is_shared", False),
             is_archived=updated_ws.is_archived,
             role="owner",
             is_owner=True,

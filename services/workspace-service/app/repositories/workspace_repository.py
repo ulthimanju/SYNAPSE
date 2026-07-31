@@ -6,11 +6,11 @@ from ..models.workspace import Workspace
 class WorkspaceRepository:
     """Repository for managing Workspace documents in MongoDB."""
 
-    async def create(self, name: str, owner_id: str, visibility: str = "private") -> Workspace:
+    async def create(self, name: str, owner_id: str, is_shared: bool = False) -> Workspace:
         workspace = Workspace(
             name=name,
             owner_id=owner_id,
-            visibility=visibility
+            is_shared=is_shared
         )
         await workspace.insert()
         return workspace

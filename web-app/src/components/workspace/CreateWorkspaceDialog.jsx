@@ -6,14 +6,14 @@ import { Button } from '../common/Button';
 
 export const CreateWorkspaceDialog = ({ isOpen, onClose, onSubmit, loading = false }) => {
   const [name, setName] = useState('');
-  const [visibility, setVisibility] = useState('private');
+  const [isShared, setIsShared] = useState(false);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name.trim()) return;
-    onSubmit({ name, visibility });
+    onSubmit({ name, is_shared: isShared });
     setName('');
-    setVisibility('private');
+    setIsShared(false);
   };
 
   return (
@@ -27,12 +27,12 @@ export const CreateWorkspaceDialog = ({ isOpen, onClose, onSubmit, loading = fal
           required
         />
         <Select
-          label="Visibility"
-          value={visibility}
-          onChange={(e) => setVisibility(e.target.value)}
+          label="Workspace Access"
+          value={isShared ? 'true' : 'false'}
+          onChange={(e) => setIsShared(e.target.value === 'true')}
           options={[
-            { label: 'Private (Only Me)', value: 'private' },
-            { label: 'Shared (Workspace Members)', value: 'shared' },
+            { label: 'Private (Only Me)', value: 'false' },
+            { label: 'Shared (Workspace Members)', value: 'true' },
           ]}
         />
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
