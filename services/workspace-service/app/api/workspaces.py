@@ -376,27 +376,40 @@ async def get_or_generate_unit_content(
     unit_id: str = Path(..., description="Unit ID"),
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> APIResponse[dict]:
-    """Retrieves cached unit content (Summary + Flashcards + Quiz) or generates on-demand via AI Service."""
-    # 1. Check if Already Generated?
+    """Retrieves cached unit content (Summary + Flashcards + Quiz) from Redis cache/MongoDB or generates on-demand via AI Service."""
+    from shared.cache.redis_client import redis_cache_manager
+    cache_key = f"unit_content:{workspace_id}:{unit_id}"
+
+    # 1. Check Redis Cache first (sub-millisecond hit!)
+    cached_payload = await redis_cache_manager.get_json_cache(cache_key)
+    if cached_payload is not None and isinstance(cached_payload, dict):
+        return APIResponse(
+            message="Unit content retrieved from Redis cache.",
+            data=cached_payload
+        )
+
+    # 2. Check if Already Generated in MongoDB
     cached = await LearningUnitContent.find_one(
         LearningUnitContent.workspace_id == workspace_id,
         LearningUnitContent.unit_id == unit_id
     )
     if cached:
+        payload = {
+            "workspace_id": cached.workspace_id,
+            "unit_id": cached.unit_id,
+            "unit_title": cached.unit_title,
+            "unit_summary": cached.unit_summary,
+            "flashcards": cached.flashcards,
+            "quiz": cached.quiz,
+            "already_generated": True,
+        }
+        await redis_cache_manager.set_json_cache(cache_key, payload, ttl_seconds=2592000)
         return APIResponse(
             message="Unit content retrieved from cache.",
-            data={
-                "workspace_id": cached.workspace_id,
-                "unit_id": cached.unit_id,
-                "unit_title": cached.unit_title,
-                "unit_summary": cached.unit_summary,
-                "flashcards": cached.flashcards,
-                "quiz": cached.quiz,
-                "already_generated": True,
-            }
+            data=payload
         )
 
-    # 2. Retrieve unit metadata from LearningPath
+    # 3. Retrieve unit metadata from LearningPath
     lp = await LearningPath.find_one(LearningPath.workspace_id == workspace_id)
     unit_title = f"Unit {unit_id}"
     topics = []
@@ -416,7 +429,7 @@ async def get_or_generate_unit_content(
                 objectives = u.get("learning_objectives", [])
                 break
 
-    # 3. Call AI Service to generate concept-specific Summary + Flashcards + Quiz
+    # 4. Call AI Service to generate concept-specific Summary + Flashcards + Quiz
     from shared.config.settings import settings
     ai_service_url = settings.ai_service_url
     unit_content = None
@@ -443,7 +456,7 @@ async def get_or_generate_unit_content(
     if not unit_content:
         raise ServiceUnavailableException("AI Service is currently generating content or unavailable. Please try again.")
 
-    # 4. Store Learning Unit into MongoDB
+    # 5. Store Learning Unit into MongoDB and Redis
     saved = LearningUnitContent(
         workspace_id=workspace_id,
         unit_id=unit_id,
@@ -456,6 +469,24 @@ async def get_or_generate_unit_content(
         await saved.insert()
     except Exception:
         pass
+
+    final_payload = {
+        "workspace_id": workspace_id,
+        "unit_id": unit_id,
+        "unit_title": unit_title,
+        "unit_summary": saved.unit_summary,
+        "flashcards": saved.flashcards,
+        "quiz": saved.quiz,
+        "already_generated": True,
+    }
+
+    # Save to Redis Cache (30-day TTL)
+    await redis_cache_manager.set_json_cache(cache_key, final_payload, ttl_seconds=2592000)
+
+    return APIResponse(
+        message="Generated learning unit content successfully.",
+        data=final_payload
+    )
 
     # 5. Return Content
     return APIResponse(

@@ -266,6 +266,12 @@ class AIJobWorker:
             except Exception as cache_exc:
                 logger.warning(f"Learning path cache invalidation notice: {cache_exc}")
 
+            # Auto pre-generate Content for the FIRST Unit in background
+            units = ai_data.get("units", []) or (ai_data.get("knowledge_graph", {}).get("nodes", []))
+            if units and isinstance(units, list) and len(units) > 0:
+                first_unit = units[0]
+                asyncio.create_task(self._pregenerate_unit_content(ws_id, first_unit))
+
         elif job.job_type == "FLASHCARDS":
             cards_data = [
                 {
@@ -348,3 +354,61 @@ class AIJobWorker:
                     await q.insert()
                 except Exception:
                     pass
+
+    async def _pregenerate_unit_content(self, workspace_id: str, unit_data: Dict[str, Any]) -> None:
+        """Pre-generates AI Summary + Quiz + Flashcards in background for Unit 1."""
+        try:
+            unit_id = str(unit_data.get("id", "unit-1"))
+            unit_title = unit_data.get("title", f"Unit {unit_id}")
+            topics = unit_data.get("keywords") or unit_data.get("topics", [])
+            objectives = unit_data.get("learning_objectives", [])
+
+            from ..models.learning_unit_content import LearningUnitContent
+            existing = await LearningUnitContent.find_one(
+                LearningUnitContent.workspace_id == workspace_id,
+                LearningUnitContent.unit_id == unit_id
+            )
+            if existing:
+                return
+
+            logger.info(f"🚀 [PRE-GENERATION] Auto pre-generating Unit 1 ('{unit_title}') for workspace {workspace_id}")
+            from shared.config.settings import settings
+            async with httpx.AsyncClient(timeout=90.0) as client:
+                res = await client.post(
+                    f"{settings.ai_service_url}/learning-unit-content",
+                    json={
+                        "workspace_id": workspace_id,
+                        "unit_id": unit_id,
+                        "unit_title": unit_title,
+                        "topics": topics,
+                        "learning_objectives": objectives,
+                    }
+                )
+                if res.status_code == 200:
+                    payload = res.json().get("data", {})
+                    if payload and payload.get("unit_summary"):
+                        saved = LearningUnitContent(
+                            workspace_id=workspace_id,
+                            unit_id=unit_id,
+                            unit_title=unit_title,
+                            unit_summary=payload.get("unit_summary", ""),
+                            flashcards=payload.get("flashcards", []),
+                            quiz=payload.get("quiz", {}),
+                        )
+                        await saved.insert()
+
+                        from shared.cache.redis_client import redis_cache_manager
+                        cache_key = f"unit_content:{workspace_id}:{unit_id}"
+                        cache_payload = {
+                            "workspace_id": workspace_id,
+                            "unit_id": unit_id,
+                            "unit_title": unit_title,
+                            "unit_summary": saved.unit_summary,
+                            "flashcards": saved.flashcards,
+                            "quiz": saved.quiz,
+                            "already_generated": True,
+                        }
+                        await redis_cache_manager.set_json_cache(cache_key, cache_payload, ttl_seconds=2592000)
+                        logger.info(f"✅ [PRE-GENERATION COMPLETE] Pre-generated Unit 1 ('{unit_title}') saved & cached in Redis!")
+        except Exception as exc:
+            logger.warning(f"Unit 1 pre-generation notice for workspace {workspace_id}: {exc}")
