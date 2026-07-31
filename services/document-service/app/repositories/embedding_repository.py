@@ -1,5 +1,6 @@
 import uuid
 from typing import List, Dict, Any
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.chunk_embedding import DocumentChunkEmbedding
 
@@ -10,20 +11,21 @@ class EmbeddingRepository:
         self,
         session: AsyncSession,
         records: List[Dict[str, Any]]
-    ) -> List[DocumentChunkEmbedding]:
+    ) -> bool:
         if not records:
-            return []
+            return True
 
-        embeddings = [
-            DocumentChunkEmbedding(
-                id=uuid.uuid4(),
-                chunk_id=r["chunk_id"],
-                document_id=r["document_id"],
-                workspace_id=r["workspace_id"],
-                embedding=r["embedding"],
-            )
-            for r in records
-        ]
-        session.add_all(embeddings)
+        for r in records:
+            emb_str = "[" + ",".join(str(f) for f in r["embedding"]) + "]"
+            sql = text("""
+                INSERT INTO document_chunk_embeddings (id, chunk_id, document_id, workspace_id, embedding, created_at)
+                VALUES (gen_random_uuid(), :chunk_id, :document_id, :workspace_id, CAST(:emb AS vector), CURRENT_TIMESTAMP)
+            """)
+            await session.execute(sql, {
+                "chunk_id": r["chunk_id"],
+                "document_id": r["document_id"],
+                "workspace_id": r["workspace_id"],
+                "emb": emb_str
+            })
         await session.commit()
-        return embeddings
+        return True
