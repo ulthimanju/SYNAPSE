@@ -15,17 +15,19 @@ class EmbeddingRepository:
         if not records:
             return True
 
-        for r in records:
-            emb_str = "[" + ",".join(str(f) for f in r["embedding"]) + "]"
-            sql = text("""
-                INSERT INTO document_chunk_embeddings (id, chunk_id, document_id, workspace_id, embedding, created_at)
-                VALUES (gen_random_uuid(), :chunk_id, :document_id, :workspace_id, CAST(:emb AS vector), CURRENT_TIMESTAMP)
-            """)
-            await session.execute(sql, {
+        params = [
+            {
                 "chunk_id": r["chunk_id"],
                 "document_id": r["document_id"],
                 "workspace_id": r["workspace_id"],
-                "emb": emb_str
-            })
+                "emb": "[" + ",".join(str(f) for f in r["embedding"]) + "]"
+            }
+            for r in records
+        ]
+        sql = text("""
+            INSERT INTO document_chunk_embeddings (id, chunk_id, document_id, workspace_id, embedding, created_at)
+            VALUES (gen_random_uuid(), :chunk_id, :document_id, :workspace_id, CAST(:emb AS vector), CURRENT_TIMESTAMP)
+        """)
+        await session.execute(sql, params)
         await session.commit()
         return True

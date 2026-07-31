@@ -27,14 +27,22 @@ class ChunkingService:
         self.chunker = chunker or LlamaMarkdownChunker()
         self.publisher = publisher or EventPublisher()
 
-    async def chunk_document(self, document_id: str, workspace_id: str) -> List[DocumentChunk]:
+    async def chunk_document(
+        self,
+        document_id: str,
+        workspace_id: str,
+        doc: Optional[Any] = None,
+        parsed_doc: Optional[Any] = None,
+    ) -> List[DocumentChunk]:
         """Reads parsed Markdown, chunks using MarkdownNodeParser, persists chunks, updates status to 'chunked'."""
-        doc = await self.doc_repo.get_by_id(document_id)
+        if not doc:
+            doc = await self.doc_repo.get_by_id(document_id)
         if not doc:
             logger.warning(f"Document ID {document_id} not found for chunking")
             return []
 
-        parsed_doc = await self.parsed_doc_repo.get_by_document_id(document_id)
+        if not parsed_doc:
+            parsed_doc = await self.parsed_doc_repo.get_by_document_id(document_id)
         if not parsed_doc:
             logger.warning(f"ParsedDocument for doc ID {document_id} missing")
             return []
@@ -76,14 +84,19 @@ class ChunkingService:
 
             logger.info(f"Chunked document ID {document_id} into {len(saved_chunks)} semantic nodes")
 
-            # 6. Trigger Embedding Service
+            # 6. Trigger Embedding Service with pre-loaded doc and saved_chunks models
             from .embedding_service import EmbeddingService
             embedding_service = EmbeddingService(
                 doc_repo=self.doc_repo,
                 chunk_repo=self.chunk_repo,
                 publisher=self.publisher
             )
-            await embedding_service.generate_and_store_embeddings(document_id=document_id, workspace_id=workspace_id)
+            await embedding_service.generate_and_store_embeddings(
+                document_id=document_id,
+                workspace_id=workspace_id,
+                doc=doc,
+                chunks=saved_chunks
+            )
             return saved_chunks
 
         except Exception as exc:

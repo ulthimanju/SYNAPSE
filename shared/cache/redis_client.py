@@ -33,6 +33,10 @@ class CacheKeys:
     def ws_detail(workspace_id: str, user_id: str) -> str:
         return f"ws_detail:{workspace_id}:{user_id}"
 
+    @staticmethod
+    def workspace_access(workspace_id: str, user_id: str) -> str:
+        return f"ws_access:{workspace_id}:{user_id}"
+
     # Learning Path — shared workspace content, but scoped with ws_id.
     # Per-user isolation is enforced at the API membership-check layer.
     @staticmethod

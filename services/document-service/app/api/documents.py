@@ -113,17 +113,24 @@ async def get_internal_chunks_by_ids(
     chunks = await repo.get_chunks_by_ids(chunk_ids)
     
     from ..models.document import Document
-    doc_cache = {}
+    from bson import ObjectId
+    
+    doc_ids = list({c.document_id for c in chunks if c.document_id})
+    doc_map = {}
+    if doc_ids:
+        valid_obj_ids = []
+        for did in doc_ids:
+            try:
+                valid_obj_ids.append(ObjectId(did))
+            except Exception:
+                pass
+        if valid_obj_ids:
+            parent_docs = await Document.find({"_id": {"$in": valid_obj_ids}}).to_list()
+            doc_map = {str(d.id): d.filename for d in parent_docs}
     
     data = []
     for c in chunks:
-        doc_name = "Document"
-        if c.document_id:
-            if c.document_id not in doc_cache:
-                parent_doc = await Document.get(c.document_id)
-                doc_cache[c.document_id] = parent_doc.filename if parent_doc else "Document"
-            doc_name = doc_cache[c.document_id]
-            
+        doc_name = doc_map.get(c.document_id, "Document")
         data.append({
             "chunk_id": str(c.id),
             "document_id": c.document_id,

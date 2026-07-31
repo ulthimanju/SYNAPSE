@@ -28,14 +28,22 @@ class EmbeddingService:
         self.embedding_client = embedding_client or GeminiEmbeddingClient()
         self.publisher = publisher or EventPublisher()
 
-    async def generate_and_store_embeddings(self, document_id: str, workspace_id: str) -> bool:
+    async def generate_and_store_embeddings(
+        self,
+        document_id: str,
+        workspace_id: str,
+        doc: Optional[Any] = None,
+        chunks: Optional[Any] = None,
+    ) -> bool:
         """Reads document chunks, generates 768-dim embeddings via Gemini API, stores vectors in PostgreSQL, updates status to 'ready'."""
-        doc = await self.doc_repo.get_by_id(document_id)
+        if not doc:
+            doc = await self.doc_repo.get_by_id(document_id)
         if not doc:
             logger.warning(f"Document ID {document_id} not found for embedding generation")
             return False
 
-        chunks = await self.chunk_repo.get_chunks_by_document(document_id)
+        if not chunks:
+            chunks = await self.chunk_repo.get_chunks_by_document(document_id)
         if not chunks:
             logger.warning(f"No semantic chunks found for document ID {document_id}")
             return False
