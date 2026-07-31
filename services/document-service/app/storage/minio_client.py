@@ -71,6 +71,17 @@ class MinIOStorageService:
         )
         return storage_key
 
+    def get_file_bytes(self, storage_key: str) -> bytes:
+        """Retrieves raw object bytes from MinIO."""
+        response = None
+        try:
+            response = self.client.get_object(self.bucket_name, storage_key)
+            return response.read()
+        finally:
+            if response:
+                response.close()
+                response.release_conn()
+
     def delete_file(self, storage_key: str) -> bool:
         """Deletes object from MinIO."""
         try:

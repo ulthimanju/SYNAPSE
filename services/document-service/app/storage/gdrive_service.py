@@ -12,11 +12,13 @@ logger = logging.getLogger(__name__)
 GOOGLE_DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files"
 GOOGLE_DRIVE_UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"
 
+from .minio_client import MinIOStorageService
+
 class GoogleDriveStorageService:
-    """Exclusive Google Drive Storage Provider organizing files into workspace_id folders (No local disk storage)."""
+    """Hybrid Storage Provider targeting Google Drive with seamless MinIO object storage fallback."""
 
     def __init__(self):
-        pass
+        self.minio_service = MinIOStorageService()
 
     async def get_or_create_workspace_folder(self, workspace_id: str, access_token: str) -> str:
         """Queries Google Drive for folder named workspace_id; creates it if missing."""
@@ -41,10 +43,10 @@ class GoogleDriveStorageService:
                     if folder_id:
                         logger.info(f"Created Google Drive folder for workspace '{workspace_id}' (folder ID: {folder_id})")
                         return folder_id
-                raise ServiceUnavailableException(f"Google Drive folder creation failed: {create_res.text}")
+                raise Exception(f"Google Drive folder creation failed ({create_res.status_code}): {create_res.text[:200]}")
         except Exception as exc:
-            logger.error(f"Google Drive folder creation error for workspace '{workspace_id}': {exc}")
-            raise ServiceUnavailableException(f"Google Drive storage error: {str(exc)}")
+            logger.warning(f"Google Drive folder creation error for workspace '{workspace_id}': {exc}")
+            raise
 
     async def upload_file(
         self,
@@ -54,83 +56,97 @@ class GoogleDriveStorageService:
         content_type: str = "application/octet-stream",
         auth_token: Optional[str] = None,
     ) -> str:
-        """Uploads file exclusively to Google Drive inside folder named workspace_id."""
+        """Uploads file to Google Drive if OAuth token is valid; falls back seamlessly to MinIO S3 object storage."""
         google_token = self._extract_google_token(auth_token)
-        if not google_token:
-            raise ServiceUnavailableException(
-                "Google Drive access token missing. Please sign in with Google or configure GOOGLE_DRIVE_DEV_TOKEN."
-            )
+        if google_token:
+            try:
+                folder_id = await self.get_or_create_workspace_folder(workspace_id, google_token)
+                headers = {"Authorization": f"Bearer {google_token}"}
+                metadata = {"name": filename, "parents": [folder_id]}
 
-        folder_id = await self.get_or_create_workspace_folder(workspace_id, google_token)
-        headers = {"Authorization": f"Bearer {google_token}"}
-        metadata = {"name": filename, "parents": [folder_id]}
+                boundary = f"----SynapseBoundary{uuid.uuid4().hex}"
+                body = (
+                    f"--{boundary}\r\n"
+                    f"Content-Type: application/json; charset=UTF-8\r\n\r\n"
+                    f"{json.dumps(metadata)}\r\n"
+                    f"--{boundary}\r\n"
+                    f"Content-Type: {content_type}\r\n\r\n"
+                ).encode("utf-8") + file_bytes + f"\r\n--{boundary}--\r\n".encode("utf-8")
 
-        boundary = f"----SynapseBoundary{uuid.uuid4().hex}"
-        body = (
-            f"--{boundary}\r\n"
-            f"Content-Type: application/json; charset=UTF-8\r\n\r\n"
-            f"{json.dumps(metadata)}\r\n"
-            f"--{boundary}\r\n"
-            f"Content-Type: {content_type}\r\n\r\n"
-        ).encode("utf-8") + file_bytes + f"\r\n--{boundary}--\r\n".encode("utf-8")
+                headers["Content-Type"] = f"multipart/related; boundary={boundary}"
 
-        headers["Content-Type"] = f"multipart/related; boundary={boundary}"
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    res = await client.post(GOOGLE_DRIVE_UPLOAD_URL, headers=headers, content=body)
+                    if res.status_code in (200, 201):
+                        file_id = res.json().get("id")
+                        if file_id:
+                            logger.info(f"[GDRIVE STORAGE] Uploaded '{filename}' to Google Drive in folder '{workspace_id}' (file ID: {file_id})")
+                            return f"gdrive://{file_id}"
+                    logger.warning(f"Google Drive upload API returned status {res.status_code}, falling back to MinIO S3 storage.")
+            except Exception as exc:
+                logger.warning(f"Google Drive upload attempt failed ({exc}), falling back to MinIO S3 storage.")
 
+        # Seamless Fallback to MinIO S3 Object Storage
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                res = await client.post(GOOGLE_DRIVE_UPLOAD_URL, headers=headers, content=body)
-                if res.status_code in (200, 201):
-                    file_id = res.json().get("id")
-                    if file_id:
-                        logger.info(f"[EXCLUSIVE GDRIVE] Uploaded '{filename}' to Google Drive in folder '{workspace_id}' (file ID: {file_id})")
-                        return f"gdrive://{file_id}"
-                raise ServiceUnavailableException(f"Google Drive upload API failed ({res.status_code}): {res.text[:200]}")
+            self.minio_service.ensure_bucket()
+            storage_key = self.minio_service.generate_storage_key(workspace_id, filename)
+            self.minio_service.upload_file(storage_key, io.BytesIO(file_bytes), len(file_bytes), content_type)
+            logger.info(f"📦 [MINIO STORAGE] Uploaded '{filename}' to MinIO object storage (key: {storage_key})")
+            return f"minio://{storage_key}"
         except Exception as exc:
-            logger.error(f"Google Drive upload exception for '{filename}': {exc}")
-            raise ServiceUnavailableException(f"Google Drive upload failed: {str(exc)}")
+            logger.error(f"MinIO storage upload failure for '{filename}': {exc}")
+            raise ServiceUnavailableException(f"Storage upload failed: {str(exc)}")
 
     async def get_file_bytes(self, storage_key: str, auth_token: Optional[str] = None) -> bytes:
-        """Downloads raw file bytes exclusively from Google Drive."""
+        """Downloads raw file bytes from MinIO or Google Drive."""
+        if storage_key.startswith("minio://"):
+            real_key = storage_key.replace("minio://", "")
+            return self.minio_service.get_file_bytes(real_key)
+
         google_token = self._extract_google_token(auth_token)
-        if not google_token:
-            raise ServiceUnavailableException("Google Drive access token missing for file retrieval.")
+        if google_token and storage_key.startswith("gdrive://"):
+            file_id = storage_key.replace("gdrive://", "")
+            headers = {"Authorization": f"Bearer {google_token}"}
+            url = f"{GOOGLE_DRIVE_FILES_URL}/{file_id}?alt=media"
 
-        file_id = storage_key.replace("gdrive://", "")
-        headers = {"Authorization": f"Bearer {google_token}"}
-        url = f"{GOOGLE_DRIVE_FILES_URL}/{file_id}?alt=media"
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    res = await client.get(url, headers=headers)
+                    if res.status_code == 200:
+                        return res.content
+            except Exception as exc:
+                logger.warning(f"Google Drive download error for file ID {file_id}: {exc}")
 
+        # Try MinIO fallback
+        real_key = storage_key.replace("gdrive://", "").replace("minio://", "")
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                res = await client.get(url, headers=headers)
-                if res.status_code == 200:
-                    return res.content
-                raise NotFoundException(f"File ID '{file_id}' not found on Google Drive ({res.status_code})")
-        except Exception as exc:
-            logger.error(f"Google Drive download error for file ID {file_id}: {exc}")
-            raise ServiceUnavailableException(f"Google Drive download failed: {str(exc)}")
+            return self.minio_service.get_file_bytes(real_key)
+        except Exception:
+            raise ServiceUnavailableException(f"Failed to retrieve file bytes for '{storage_key}'")
 
     async def delete_file(self, storage_key: str, auth_token: Optional[str] = None) -> bool:
-        """Deletes file exclusively from Google Drive."""
+        """Deletes file from MinIO or Google Drive."""
+        if storage_key.startswith("minio://"):
+            real_key = storage_key.replace("minio://", "")
+            return self.minio_service.delete_file(real_key)
+
         google_token = self._extract_google_token(auth_token)
-        if not google_token:
-            logger.warning("Google Drive access token missing for file deletion.")
-            return False
+        if google_token and storage_key.startswith("gdrive://"):
+            file_id = storage_key.replace("gdrive://", "")
+            headers = {"Authorization": f"Bearer {google_token}"}
+            url = f"{GOOGLE_DRIVE_FILES_URL}/{file_id}"
 
-        file_id = storage_key.replace("gdrive://", "")
-        headers = {"Authorization": f"Bearer {google_token}"}
-        url = f"{GOOGLE_DRIVE_FILES_URL}/{file_id}"
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    res = await client.delete(url, headers=headers)
+                    if res.status_code in (200, 204):
+                        logger.info(f"[GDRIVE] Deleted file {file_id} from Google Drive")
+                        return True
+            except Exception as exc:
+                logger.warning(f"Google Drive delete error for file ID {file_id}: {exc}")
 
-        try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                res = await client.delete(url, headers=headers)
-                if res.status_code in (200, 204):
-                    logger.info(f"[EXCLUSIVE GDRIVE] Deleted file {file_id} from Google Drive")
-                    return True
-                logger.warning(f"Google Drive delete status ({res.status_code}): {res.text[:150]}")
-                return False
-        except Exception as exc:
-            logger.error(f"Google Drive delete error for file ID {file_id}: {exc}")
-            return False
+        real_key = storage_key.replace("gdrive://", "").replace("minio://", "")
+        return self.minio_service.delete_file(real_key)
 
     def _extract_google_token(self, auth_token: Optional[str]) -> Optional[str]:
         """Extracts Google OAuth access token from Synapse JWT claims, raw Bearer header, or dev environment variable."""
