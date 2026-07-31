@@ -1,5 +1,5 @@
 from typing import List
-from sqlalchemy import String, Boolean, Text
+from sqlalchemy import String, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .base import BaseIdentityModel
 from .role import Role
@@ -11,7 +11,6 @@ class User(BaseIdentityModel):
 
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Relationships

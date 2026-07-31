@@ -23,13 +23,13 @@ async def seed_roles(session: AsyncSession) -> None:
     await session.commit()
 
 async def init_and_seed_db() -> None:
-    """Creates database tables, migrates avatar_url column to TEXT, and seeds default roles."""
+    """Creates database tables, drops deprecated avatar_url column, and seeds default roles."""
     try:
         engine = postgres_manager.engine
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-            # Ensure avatar_url accommodates long Google CDN URLs
-            await conn.execute(text("ALTER TABLE users ALTER COLUMN avatar_url TYPE TEXT;"))
+            # Remove deprecated avatar_url column if exists
+            await conn.execute(text("ALTER TABLE users DROP COLUMN IF EXISTS avatar_url;"))
         logger.info("Identity Service PostgreSQL tables verified/created successfully.")
 
         async with postgres_manager.session_factory() as session:

@@ -15,13 +15,11 @@ class UserRepository:
         self,
         email: str,
         full_name: Optional[str] = None,
-        avatar_url: Optional[str] = None,
         roles: Optional[List[Role]] = None
     ) -> User:
         user = User(
             email=email,
             full_name=full_name,
-            avatar_url=avatar_url,
             roles=roles or [],
         )
         self.session.add(user)

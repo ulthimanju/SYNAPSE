@@ -41,14 +41,11 @@ class AuthService:
             user = await self.user_repo.create_user(
                 email=profile.email,
                 full_name=profile.name,
-                avatar_url=profile.picture,
                 roles=roles_list
             )
         else:
             if profile.name and not user.full_name:
                 user.full_name = profile.name
-            if profile.picture and not user.avatar_url:
-                user.avatar_url = profile.picture
 
         await self.session.commit()
 
@@ -112,4 +109,4 @@ class AuthService:
         except Exception as exc:
             logger.warning(f"Redis profile cache save notice: {exc}")
 
-        return user_read
+        return UserRead.model_validate(user)

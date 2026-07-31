@@ -15,7 +15,6 @@ export const OAuthCallback = () => {
     const token = searchParams.get('token');
     const email = searchParams.get('email');
     const name = searchParams.get('name');
-    const avatar = searchParams.get('avatar');
 
     if (!token) {
       setError('Authentication token missing from Google OAuth redirect.');
@@ -25,7 +24,6 @@ export const OAuthCallback = () => {
     const userProfile = {
       email: email || 'user@synapse.ai',
       full_name: name || 'Authenticated User',
-      avatar_url: avatar || null,
     };
 
     // Store auth token in localStorage and update Zustand state

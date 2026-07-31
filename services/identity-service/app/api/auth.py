@@ -1,13 +1,12 @@
 import os
 from urllib.parse import quote
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from shared.schemas import APIResponse
 from shared.auth import get_current_user, AuthenticatedUser
 from ..db import get_db
 from ..services.auth_service import AuthService
-from ..schemas.auth import GoogleAuthUrlResponse, TokenResponse
 from ..schemas.user import UserRead
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -42,9 +41,8 @@ async def google_callback(
 
     email_q = quote(user_info.email or "")
     name_q = quote(user_info.full_name or "")
-    avatar_q = quote(user_info.avatar_url or "")
 
-    redirect_to = f"{frontend_url}/auth/callback?token={access_token}&email={email_q}&name={name_q}&avatar={avatar_q}"
+    redirect_to = f"{frontend_url}/auth/callback?token={access_token}&email={email_q}&name={name_q}"
     return RedirectResponse(url=redirect_to, status_code=302)
 
 @router.get("/me", response_model=APIResponse[UserRead])

@@ -71,7 +71,6 @@ class GoogleOAuthClient:
                             id=claims.get("sub", str(uuid.uuid4())),
                             email=claims.get("email", ""),
                             name=claims.get("name"),
-                            picture=claims.get("picture"),
                         )
                         logger.info(f"⚡ [OAUTH OPTIMIZATION] Decoded Google id_token JWT for '{profile.email}'. Bypassed /userinfo API call!")
                         return access_token, profile
@@ -98,7 +97,6 @@ class GoogleOAuthClient:
                     id=data["id"],
                     email=data["email"],
                     name=data.get("name"),
-                    picture=data.get("picture"),
                 )
         except httpx.RequestError as exc:
             raise ServiceUnavailableException(f"Google UserInfo API connection error: {str(exc)}")

@@ -8,7 +8,6 @@ class UserCreate(BaseModel):
     """Schema for creating a user."""
     email: EmailStr = Field(..., description="User email address")
     full_name: str | None = Field(default=None, max_length=255, description="Full name")
-    avatar_url: str | None = Field(default=None, max_length=512, description="Avatar image URL")
 
 class UserRead(BaseModel):
     """Schema for reading user data."""
@@ -17,7 +16,6 @@ class UserRead(BaseModel):
     id: uuid.UUID
     email: str
     full_name: str | None = None
-    avatar_url: str | None = None
     is_active: bool
     roles: List[RoleRead] = Field(default_factory=list)
     created_at: datetime

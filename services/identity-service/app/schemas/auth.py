@@ -12,7 +12,6 @@ class GoogleProfile(BaseModel):
     id: str
     email: EmailStr
     name: Optional[str] = None
-    picture: Optional[str] = None
 
 class TokenResponse(BaseModel):
     """Synapse Authentication Token Response with Access & Refresh Tokens."""
