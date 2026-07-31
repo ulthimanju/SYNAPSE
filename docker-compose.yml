@@ -1,20 +1,23 @@
-version: '3.8'
-
 services:
   # Single PostgreSQL container with pgvector support
   postgres:
     image: pgvector/pgvector:pg16
     container_name: synapse-postgres
-    restart: always
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: synapse_user
-      POSTGRES_PASSWORD: synapse_password
-      POSTGRES_DB: synapse_identity
+      POSTGRES_USER: ${POSTGRES_USER:-synapse_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-synapse_password}
+      POSTGRES_DB: ${POSTGRES_DB:-synapse_identity}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infrastructure/postgres/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-synapse_user} -d ${POSTGRES_DB:-synapse_identity}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - synapse-net
 
@@ -22,14 +25,19 @@ services:
   mongodb:
     image: mongo:7.0
     container_name: synapse-mongodb
-    restart: always
+    restart: unless-stopped
     environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: examplepassword
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USER:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD:-examplepassword}
     ports:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - synapse-net
 
@@ -37,25 +45,38 @@ services:
   redis:
     image: redis:7-alpine
     container_name: synapse-redis
-    restart: always
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - synapse-net
 
   # RabbitMQ Message Broker
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:3.13-management
     container_name: synapse-rabbitmq
-    restart: always
+    restart: unless-stopped
     ports:
       - "5672:5672"
       - "15672:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: synapse
-      RABBITMQ_DEFAULT_PASS: synapse_pass
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-synapse}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-synapse_pass}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - synapse-net
 
@@ -63,16 +84,21 @@ services:
   minio:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: synapse-minio
-    restart: always
+    restart: unless-stopped
     command: server /data --console-address ":9001"
     ports:
       - "9000:9000"
       - "9001:9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadminpassword
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadminpassword}
     volumes:
       - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - synapse-net
 
@@ -82,18 +108,18 @@ services:
       context: .
       dockerfile: services/identity-service/Dockerfile
     container_name: synapse-identity-service
-    restart: always
+    restart: unless-stopped
     env_file:
       - .env
     ports:
       - "8001:8001"
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
-      synapse-net:
-        aliases:
-          - identity-service
+      - synapse-net
 
   # Workspace Service (Port 8002)
   workspace-service:
@@ -101,18 +127,18 @@ services:
       context: .
       dockerfile: services/workspace-service/Dockerfile
     container_name: synapse-workspace-service
-    restart: always
+    restart: unless-stopped
     env_file:
       - .env
     ports:
       - "8002:8002"
     depends_on:
-      - mongodb
-      - rabbitmq
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
-      synapse-net:
-        aliases:
-          - workspace-service
+      - synapse-net
 
   # Document Processing Service (Port 8003)
   document-service:
@@ -120,20 +146,22 @@ services:
       context: .
       dockerfile: services/document-service/Dockerfile
     container_name: synapse-document-service
-    restart: always
+    restart: unless-stopped
     env_file:
       - .env
     ports:
       - "8003:8003"
     depends_on:
-      - mongodb
-      - postgres
-      - minio
-      - rabbitmq
+      mongodb:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
-      synapse-net:
-        aliases:
-          - document-service
+      - synapse-net
 
   # AI Service (Port 8004)
   ai-service:
@@ -141,17 +169,16 @@ services:
       context: .
       dockerfile: services/ai-service/Dockerfile
     container_name: synapse-ai-service
-    restart: always
+    restart: unless-stopped
     env_file:
       - .env
     ports:
       - "8004:8004"
     depends_on:
-      - rabbitmq
+      rabbitmq:
+        condition: service_healthy
     networks:
-      synapse-net:
-        aliases:
-          - ai-service
+      - synapse-net
 
   # RAG Service (Port 8005)
   rag-service:
@@ -159,18 +186,18 @@ services:
       context: .
       dockerfile: services/rag-service/Dockerfile
     container_name: synapse-rag-service
-    restart: always
+    restart: unless-stopped
     env_file:
       - .env
     ports:
       - "8005:8005"
     depends_on:
-      - postgres
-      - mongodb
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
     networks:
-      synapse-net:
-        aliases:
-          - rag-service
+      - synapse-net
 
   # API Gateway (Port 8000)
   gateway:
@@ -178,22 +205,26 @@ services:
       context: .
       dockerfile: gateway/Dockerfile
     container_name: synapse-gateway
-    restart: always
+    restart: unless-stopped
     env_file:
       - .env
     ports:
       - "8000:8000"
     depends_on:
-      - identity-service
-      - workspace-service
-      - document-service
-      - ai-service
-      - rag-service
-      - redis
+      identity-service:
+        condition: service_healthy
+      workspace-service:
+        condition: service_healthy
+      document-service:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+      rag-service:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
-      synapse-net:
-        aliases:
-          - gateway
+      - synapse-net
 
   # Web Application (Vite Dev Server with HMR - Port 3000)
   web-app:
@@ -201,7 +232,7 @@ services:
       context: ./web-app
       dockerfile: Dockerfile.dev
     container_name: synapse-web-app
-    restart: always
+    restart: unless-stopped
     ports:
       - "3000:3000"
     volumes:
@@ -211,7 +242,8 @@ services:
       - WATCHPACK_POLLING=true
       - CHOKIDAR_USEPOLLING=true
     depends_on:
-      - gateway
+      gateway:
+        condition: service_healthy
     networks:
       - synapse-net
 
@@ -223,4 +255,5 @@ volumes:
   postgres_data:
   mongo_data:
   redis_data:
+  rabbitmq_data:
   minio_data:
