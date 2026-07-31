@@ -135,6 +135,23 @@ class RedisCacheManager:
 
     # ── Generic JSON Cache ────────────────────────────────────────────────────
 
+    async def get_cache(self, key: str) -> Optional[str]:
+        """Retrieves raw string value from Redis for key."""
+        try:
+            client = await self.get_client()
+            return await client.get(key)
+        except Exception as exc:
+            logger.warning(f"Redis cache lookup notice for key '{key}': {exc}")
+            return None
+
+    async def set_cache(self, key: str, value: str, ttl_seconds: int = 3600):
+        """Sets raw string value in Redis with specified TTL."""
+        try:
+            client = await self.get_client()
+            await client.set(key, str(value), ex=ttl_seconds)
+        except Exception as exc:
+            logger.warning(f"Redis cache save notice for key '{key}': {exc}")
+
     async def get_json_cache(self, key: str) -> Optional[Any]:
         """Retrieves deserialized JSON object from Redis."""
         try:
