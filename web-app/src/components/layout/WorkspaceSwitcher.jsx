@@ -8,8 +8,7 @@ import { api } from '../../services/api';
 
 export const WorkspaceSwitcher = () => {
   const [open, setOpen] = useState(false);
-  const [workspaces, setWorkspaces] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [switcherTab, setSwitcherTab] = useState('owned'); // 'owned' | 'collaborated'
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
@@ -19,14 +18,20 @@ export const WorkspaceSwitcher = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const { activeWorkspaceId, setActiveWorkspaceId } = useAppStore();
+  const { activeWorkspaceId, setActiveWorkspaceId, workspaces, setWorkspaces } = useAppStore();
   const navigate = useNavigate();
-  const location = useLocation();
 
-  const fetchWorkspaces = useCallback(async () => {
+  const fetchWorkspaces = useCallback(async (force = false) => {
+    if (workspaces.length > 0 && !force) {
+      if (!activeWorkspaceId && workspaces.length > 0) {
+        setActiveWorkspaceId(workspaces[0].id);
+      }
+      return;
+    }
+
     setLoading(true);
     try {
-      const res = await api.get('/workspaces');
+      const res = await api.get('/workspaces/titles');
       const list = res?.data?.data || res?.data || [];
       if (Array.isArray(list)) {
         setWorkspaces(list);
@@ -42,7 +47,7 @@ export const WorkspaceSwitcher = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeWorkspaceId, setActiveWorkspaceId]);
+  }, [activeWorkspaceId, setActiveWorkspaceId, workspaces, setWorkspaces]);
 
   useEffect(() => {
     fetchWorkspaces();
@@ -104,7 +109,7 @@ export const WorkspaceSwitcher = () => {
       const res = await api.post('/workspaces', formData);
       const newWs = res?.data?.data || res?.data;
       if (newWs?.id) {
-        setWorkspaces((prev) => [newWs, ...prev]);
+        setWorkspaces([newWs, ...workspaces]);
         setActiveWorkspaceId(newWs.id);
         setIsDialogOpen(false);
         navigate(`/workspaces/${newWs.id}`);

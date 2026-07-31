@@ -1,7 +1,7 @@
 import json
 import hashlib
 import logging
-from typing import Optional, List
+from typing import Optional, List, Any
 import redis.asyncio as aioredis
 from shared.config.settings import settings
 
@@ -51,5 +51,32 @@ class RedisCacheManager:
             logger.info(f"💾 [REDIS VECTOR CACHED] Saved 768-dim vector in Redis (TTL: 7 days) for query: '{text[:30]}...'")
         except Exception as exc:
             logger.warning(f"Redis vector cache save notice: {exc}")
+
+    async def get_json_cache(self, key: str) -> Optional[Any]:
+        """Retrieves deserialized JSON object from Redis."""
+        try:
+            client = await self.get_client()
+            cached = await client.get(key)
+            if cached:
+                return json.loads(cached)
+        except Exception as exc:
+            logger.warning(f"Redis JSON cache lookup notice for key '{key}': {exc}")
+        return None
+
+    async def set_json_cache(self, key: str, value: Any, ttl_seconds: int = 3600):
+        """Serializes and caches value in Redis with specified TTL."""
+        try:
+            client = await self.get_client()
+            await client.set(key, json.dumps(value), ex=ttl_seconds)
+        except Exception as exc:
+            logger.warning(f"Redis JSON cache save notice for key '{key}': {exc}")
+
+    async def delete_cache(self, key: str):
+        """Deletes a cache key from Redis."""
+        try:
+            client = await self.get_client()
+            await client.delete(key)
+        except Exception as exc:
+            logger.warning(f"Redis cache delete notice for key '{key}': {exc}")
 
 redis_cache_manager = RedisCacheManager()
