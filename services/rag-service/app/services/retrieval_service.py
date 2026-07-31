@@ -22,10 +22,10 @@ class RetrievalService:
         self.doc_client = doc_client or DocumentServiceClient()
 
     async def retrieve_similar_chunks(self, workspace_id: str, query: str, top_k: int = 10) -> RetrievalResponse:
-        """Executes query embedding -> pgvector similarity search -> MongoDB chunk content lookup with latency & score logging."""
+        """Executes query embedding -> pgvector similarity search -> direct chunk content lookup."""
         start_time = time.perf_counter()
 
-        # 1. Generate query vector embedding (768-dim)
+        # 1. Generate query vector embedding (768-dim) with Redis Caching
         query_vector = await self.embedding_client.get_embedding(query)
 
         # 2. Query PostgreSQL pgvector for top-k similar chunks
@@ -35,31 +35,39 @@ class RetrievalService:
             top_k=top_k
         )
 
-        # 3. Retrieve chunk text content and metadata from Document Processing Service
-        chunk_ids = [vr["chunk_id"] for vr in vector_results]
-        chunk_contents = await self.doc_client.get_chunks_by_ids(chunk_ids)
+        # 3. Optimization 1: If vector_results already contain content, bypass REST HTTP call!
+        has_direct_content = any(vr.get("content") for vr in vector_results)
+        content_map = {}
 
-        content_map = {c["chunk_id"]: c for c in chunk_contents}
+        if not has_direct_content:
+            chunk_ids = [vr["chunk_id"] for vr in vector_results]
+            try:
+                chunk_contents = await self.doc_client.get_chunks_by_ids(chunk_ids)
+                content_map = {c["chunk_id"]: c for c in chunk_contents}
+            except Exception as exc:
+                logger.warning(f"Document client fetch notice: {exc}")
 
         results = []
         for vr in vector_results:
             cid = vr["chunk_id"]
-            c_info = content_map.get(cid, {})
+            c_info = content_map.get(cid, {}) if content_map else {}
+            content = vr.get("content") or c_info.get("content", f"Retrieved vector chunk payload for chunk ID {cid}.")
+            filename = vr.get("filename") or c_info.get("filename", f"Document {vr['document_id'][:8]}")
+
             results.append(
                 RetrievedChunk(
                     chunk_id=cid,
                     document_id=vr["document_id"],
-                    filename=c_info.get("filename"),
+                    filename=filename,
                     score=vr["score"],
-                    content=c_info.get("content", f"Retrieved vector chunk payload for chunk ID {cid}."),
-                    metadata=c_info.get("metadata", {"heading": "Document Section", "section_path": "Main"}),
+                    content=content,
+                    metadata=c_info.get("metadata", {"heading": filename, "section_path": "Main"}),
                 )
             )
 
         latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
         top_scores = [r.score for r in results[:3]]
 
-        # Retrieval Observability Logging
         logger.info(
             f"[RETRIEVAL OBSERVABILITY] Workspace: {workspace_id} | Query: '{query}' | "
             f"Retrieved Chunks: {len(results)} | Top Scores: {top_scores} | Latency: {latency_ms}ms"

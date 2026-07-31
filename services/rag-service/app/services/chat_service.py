@@ -22,16 +22,28 @@ class ChatService:
         self.retrieval_service = retrieval_service or RetrievalService()
 
     async def process_chat(self, workspace_id: str, query: str) -> Dict[str, Any]:
-        """Processes a chat turn for the singleton workspace conversation."""
-        # 1. Retrieve or create singleton conversation
-        conv = await self.conv_repo.get_or_create_conversation(workspace_id)
-        conv_id = str(conv.id)
+        """Processes a chat turn using Redis session caching, RAG retrieval, and async background message persistence."""
+        import asyncio
+        from shared.cache.redis_client import redis_cache_manager
+        cache_key = f"chat_session:{workspace_id}"
 
-        # 2. Retrieve recent message history (last 10 messages)
-        history_objs = await self.msg_repo.get_recent_messages(conv_id, limit=10)
-        history = [{"role": m.role, "content": m.content} for m in history_objs]
+        # 1. Optimization 2: Check Redis Session Cache first (0 MongoDB Reads!)
+        conv_id = None
+        history = []
+        cached_session = await redis_cache_manager.get_json_cache(cache_key)
 
-        # 3. Retrieve relevant vector context chunks via RetrievalService
+        if cached_session and isinstance(cached_session, dict):
+            conv_id = cached_session.get("conv_id")
+            history = cached_session.get("history", [])
+            logger.info(f"⚡ [REDIS CHAT SESSION HIT] Bypassed MongoDB history read for workspace '{workspace_id[:8]}'")
+
+        if not conv_id:
+            conv = await self.conv_repo.get_or_create_conversation(workspace_id)
+            conv_id = str(conv.id)
+            history_objs = await self.msg_repo.get_recent_messages(conv_id, limit=10)
+            history = [{"role": m.role, "content": m.content} for m in history_objs]
+
+        # 2. Retrieve relevant vector context chunks via RetrievalService
         retrieval_resp = await self.retrieval_service.retrieve_similar_chunks(
             workspace_id=workspace_id,
             query=query,
@@ -45,7 +57,7 @@ class ChatService:
             heading = r.metadata.get("heading") if r.metadata else None
             doc_filename = getattr(r, "filename", None) or (r.metadata.get("filename") if r.metadata else None) or f"Document {r.document_id[:8]}"
             
-            if heading and heading != "/":
+            if heading and heading != doc_filename and heading != "/":
                 clean_heading = f"{doc_filename} > {heading}"
             else:
                 clean_heading = doc_filename
@@ -58,29 +70,38 @@ class ChatService:
                 "heading": clean_heading,
             })
 
-        # 4. Build RAG prompt
+        # 3. Build RAG prompt
         prompt = build_rag_chat_prompt(history, chunks, query)
 
-        # 5. Generate answer using Gemini Flash AI Provider with grounded chunk synthesis fallback
+        # 4. Generate answer using Gemini Flash AI Provider
         answer = await self._generate_llm_answer(prompt, chunks)
 
-        # 6. Save user message & assistant message in MongoDB
-        await self.msg_repo.add_message(
-            conversation_id=conv_id,
-            role="user",
-            content=query
-        )
-        assistant_msg = await self.msg_repo.add_message(
-            conversation_id=conv_id,
-            role="assistant",
-            content=answer,
-            sources=sources
-        )
+        # Update local history
+        updated_history = history + [
+            {"role": "user", "content": query},
+            {"role": "assistant", "content": answer}
+        ]
+        # Keep only recent 10 messages in Redis session
+        session_payload = {
+            "conv_id": conv_id,
+            "history": updated_history[-10:]
+        }
+        await redis_cache_manager.set_json_cache(cache_key, session_payload, ttl_seconds=86400)
+
+        # 5. Optimization 4: Save messages asynchronously in background (non-blocking!)
+        async def _persist_messages_async():
+            try:
+                await self.msg_repo.add_message(conversation_id=conv_id, role="user", content=query)
+                await self.msg_repo.add_message(conversation_id=conv_id, role="assistant", content=answer, sources=sources)
+            except Exception as p_exc:
+                logger.warning(f"Async message persistence notice: {p_exc}")
+
+        asyncio.create_task(_persist_messages_async())
 
         return {
             "answer": answer,
             "sources": sources,
-            "message_id": str(assistant_msg.id),
+            "message_id": f"msg-{int(time.time()*1000)}",
         }
 
     async def get_history(self, workspace_id: str) -> List[Dict[str, Any]]:
