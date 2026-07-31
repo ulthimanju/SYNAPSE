@@ -4,21 +4,110 @@ import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Check, Copy, AlertCircle, Info, AlertTriangle, Lightbulb, ShieldAlert } from 'lucide-react';
+import katex from 'katex';
 import { useThemeStore } from '../../stores/themeStore';
 import { MermaidDiagram } from './MermaidDiagram';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
+
+/**
+ * Component that renders text containing LaTeX math ($...$ or $$...$$) using KaTeX directly.
+ */
+const FormattedMathText = ({ children }) => {
+  if (!children) return children;
+
+  // Helper to format string content containing LaTeX math
+  const formatString = (text, keyPrefix = '') => {
+    if (typeof text !== 'string' || !text.includes('$')) return text;
+
+    // Split text by display math $$...$$ first, then inline math $...$
+    const parts = [];
+    const displayRegex = /\$\$(\s*[\s\S]*?\s*)\$\$/g;
+    let lastIdx = 0;
+    let match;
+
+    while ((match = displayRegex.exec(text)) !== null) {
+      if (match.index > lastIdx) {
+        parts.push({ type: 'text', content: text.slice(lastIdx, match.index) });
+      }
+      parts.push({ type: 'display-math', content: match[1].trim() });
+      lastIdx = displayRegex.lastIndex;
+    }
+    if (lastIdx < text.length) {
+      parts.push({ type: 'text', content: text.slice(lastIdx) });
+    }
+
+    const finalElements = [];
+    parts.forEach((part, pIdx) => {
+      if (part.type === 'display-math') {
+        try {
+          const html = katex.renderToString(part.content, { displayMode: true, throwOnError: false });
+          finalElements.push(
+            <div
+              key={`${keyPrefix}-display-${pIdx}`}
+              dangerouslySetInnerHTML={{ __html: html }}
+              style={{ margin: '0.75rem 0', overflowX: 'auto' }}
+            />
+          );
+        } catch {
+          finalElements.push(<div key={`${keyPrefix}-display-err-${pIdx}`}>{`$$${part.content}$$`}</div>);
+        }
+      } else {
+        const inlineRegex = /(^|[^\\])\$([^\$\n]+?)\$/g;
+        let textStr = part.content;
+        let inlineIdx = 0;
+        let inlineMatch;
+
+        while ((inlineMatch = inlineRegex.exec(textStr)) !== null) {
+          const prefix = inlineMatch[1];
+          const mathStr = inlineMatch[2];
+          const matchStart = inlineMatch.index + prefix.length;
+
+          if (matchStart > inlineIdx) {
+            finalElements.push(textStr.slice(inlineIdx, matchStart));
+          }
+          if (prefix) {
+            finalElements.push(prefix);
+          }
+
+          try {
+            const html = katex.renderToString(mathStr.trim(), { displayMode: false, throwOnError: false });
+            finalElements.push(
+              <span
+                key={`${keyPrefix}-inline-${pIdx}-${inlineMatch.index}`}
+                dangerouslySetInnerHTML={{ __html: html }}
+              />
+            );
+          } catch {
+            finalElements.push(`$${mathStr}$`);
+          }
+
+          inlineIdx = inlineRegex.lastIndex;
+        }
+
+        if (inlineIdx < textStr.length) {
+          finalElements.push(textStr.slice(inlineIdx));
+        }
+      }
+    });
+
+    return <>{finalElements}</>;
+  };
+
+  return React.Children.map(children, (child, i) => {
+    if (typeof child === 'string') {
+      return formatString(child, `c-${i}`);
+    }
+    return child;
+  });
+};
 
 /**
  * Normalizes input from Gemini LLM into clean, valid Markdown.
- * Handles objects, raw JSON strings, literal '\\n', unescaped wrappers, and LaTeX math tags.
  */
 function normalizeContent(rawContent) {
   if (rawContent === null || rawContent === undefined) return '';
 
   let text = rawContent;
 
-  // Handle object or array inputs
   if (typeof text === 'object') {
     if (text.overview) text = text.overview;
     else if (text.markdown) text = text.markdown;
@@ -28,16 +117,15 @@ function normalizeContent(rawContent) {
 
   if (typeof text !== 'string') text = String(text);
 
-  // If text is a raw JSON string wrapped in backticks or curly braces, attempt clean extraction
   text = text.trim();
 
-  // Strip wrapping ```markdown or ```json if Gemini wrapped the entire payload in a top-level code fence
+  // Strip wrapping ```markdown or ```json if Gemini wrapped the entire payload
   if (/^```(?:markdown|text|json)?\n([\s\S]*)\n```$/i.test(text)) {
     const match = text.match(/^```(?:markdown|text|json)?\n([\s\S]*)\n```$/i);
     if (match && match[1]) text = match[1];
   }
 
-  // Normalize literal '\n' sequences from double-escaped JSON strings
+  // Normalize literal '\n' sequences
   if (text.includes('\\n') && !text.includes('\n')) {
     text = text.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
   }
@@ -46,9 +134,6 @@ function normalizeContent(rawContent) {
   text = text
     .replace(/\\\[([\s\S]*?)\\\]/g, '\n$$\n$1\n$$\n')
     .replace(/\\\(([\s\S]*?)\\\)/g, '$$1$');
-
-  // Ensure inline $$...$$ has proper spacing for remark-math display block parsing
-  text = text.replace(/([^\n])\$\$(\s*[\s\S]*?\s*)\$\$([^\n])/g, '$1\n\n$$$$2$$\n\n$3');
 
   return text;
 }
@@ -75,7 +160,6 @@ const CodeBlock = ({ language, codeString, isDark }) => {
         backgroundColor: 'var(--bg-secondary)',
       }}
     >
-      {/* Code Header Bar */}
       <div
         style={{
           display: 'flex',
@@ -115,7 +199,6 @@ const CodeBlock = ({ language, codeString, isDark }) => {
         </button>
       </div>
 
-      {/* Syntax Highlighting */}
       <SyntaxHighlighter
         style={isDark ? vscDarkPlus : vs}
         language={language || 'text'}
@@ -137,7 +220,7 @@ const CodeBlock = ({ language, codeString, isDark }) => {
 };
 
 /**
- * GitHub-Style Callout Alert Box Component (> [!NOTE], > [!WARNING], > [!TIP], > [!IMPORTANT], > [!CAUTION])
+ * GitHub-Style Callout Alert Box Component
  */
 const AlertCallout = ({ type, title, children }) => {
   const alertStyles = {
@@ -185,10 +268,9 @@ export const MarkdownRenderer = ({ content }) => {
   return (
     <div className="markdown-body" style={{ lineHeight: 1.7, fontSize: '0.9375rem', color: 'var(--text-primary)' }}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex]}
+        remarkPlugins={[remarkGfm]}
         components={{
-          h1: ({ node, ...props }) => (
+          h1: ({ node, children, ...props }) => (
             <h1
               className="font-serif"
               style={{
@@ -201,9 +283,11 @@ export const MarkdownRenderer = ({ content }) => {
                 marginBottom: '1rem',
               }}
               {...props}
-            />
+            >
+              <FormattedMathText>{children}</FormattedMathText>
+            </h1>
           ),
-          h2: ({ node, ...props }) => (
+          h2: ({ node, children, ...props }) => (
             <h2
               className="font-serif"
               style={{
@@ -216,9 +300,11 @@ export const MarkdownRenderer = ({ content }) => {
                 marginBottom: '0.875rem',
               }}
               {...props}
-            />
+            >
+              <FormattedMathText>{children}</FormattedMathText>
+            </h2>
           ),
-          h3: ({ node, ...props }) => (
+          h3: ({ node, children, ...props }) => (
             <h3
               className="font-serif"
               style={{
@@ -229,9 +315,11 @@ export const MarkdownRenderer = ({ content }) => {
                 marginBottom: '0.625rem',
               }}
               {...props}
-            />
+            >
+              <FormattedMathText>{children}</FormattedMathText>
+            </h3>
           ),
-          h4: ({ node, ...props }) => (
+          h4: ({ node, children, ...props }) => (
             <h4
               style={{
                 fontSize: '0.95rem',
@@ -241,31 +329,62 @@ export const MarkdownRenderer = ({ content }) => {
                 marginBottom: '0.5rem',
               }}
               {...props}
-            />
+            >
+              <FormattedMathText>{children}</FormattedMathText>
+            </h4>
           ),
-          h5: ({ node, ...props }) => (
-            <h5 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1rem' }} {...props} />
+          p: ({ node, children, ...props }) => (
+            <p style={{ marginBottom: '1rem', color: 'var(--text-primary)', lineHeight: 1.75 }} {...props}>
+              <FormattedMathText>{children}</FormattedMathText>
+            </p>
           ),
-          h6: ({ node, ...props }) => (
-            <h6 style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-muted)', marginTop: '0.85rem' }} {...props} />
+          ul: ({ node, children, ...props }) => (
+            <ul style={{ paddingLeft: '1.5rem', marginBottom: '1rem', color: 'var(--text-primary)', listStyleType: 'disc' }} {...props}>
+              {children}
+            </ul>
           ),
-          p: ({ node, ...props }) => (
-            <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }} {...props} />
+          ol: ({ node, children, ...props }) => (
+            <ol style={{ paddingLeft: '1.5rem', marginBottom: '1rem', color: 'var(--text-primary)', listStyleType: 'decimal' }} {...props}>
+              {children}
+            </ol>
           ),
-          ul: ({ node, ...props }) => (
-            <ul style={{ paddingLeft: '1.5rem', marginBottom: '1rem', color: 'var(--text-secondary)', listStyleType: 'disc' }} {...props} />
+          li: ({ node, children, ...props }) => (
+            <li style={{ marginBottom: '0.4rem', color: 'var(--text-primary)', lineHeight: 1.65 }} {...props}>
+              <FormattedMathText>{children}</FormattedMathText>
+            </li>
           ),
-          ol: ({ node, ...props }) => (
-            <ol style={{ paddingLeft: '1.5rem', marginBottom: '1rem', color: 'var(--text-secondary)', listStyleType: 'decimal' }} {...props} />
+          td: ({ node, children, ...props }) => (
+            <td
+              style={{
+                padding: '0.55rem 0.9rem',
+                borderBottom: '1px solid var(--border-color)',
+                color: 'var(--text-primary)',
+              }}
+              {...props}
+            >
+              <FormattedMathText>{children}</FormattedMathText>
+            </td>
           ),
-          li: ({ node, ...props }) => (
-            <li style={{ marginBottom: '0.375rem', lineHeight: 1.6 }} {...props} />
-          ),
-          a: ({ node, ...props }) => (
-            <a style={{ color: 'var(--accent-amber-hover)', textDecoration: 'underline', textUnderlineOffset: '3px' }} target="_blank" rel="noreferrer" {...props} />
+          th: ({ node, children, ...props }) => (
+            <th
+              style={{
+                backgroundColor: 'var(--bg-secondary)',
+                padding: '0.65rem 0.9rem',
+                textAlign: 'left',
+                fontWeight: 600,
+                borderBottom: '1px solid var(--border-color)',
+                color: 'var(--text-primary)',
+                fontSize: '0.75rem',
+                fontFamily: 'var(--font-mono)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+              }}
+              {...props}
+            >
+              <FormattedMathText>{children}</FormattedMathText>
+            </th>
           ),
           blockquote: ({ node, children, ...props }) => {
-            // Check for GitHub alert callouts (> [!NOTE], > [!WARNING], > [!TIP], > [!IMPORTANT], > [!CAUTION])
             const childArray = React.Children.toArray(children);
             const firstParagraph = childArray[0];
             
@@ -301,7 +420,7 @@ export const MarkdownRenderer = ({ content }) => {
                 }}
                 {...props}
               >
-                {children}
+                <FormattedMathText>{children}</FormattedMathText>
               </blockquote>
             );
           },
@@ -311,7 +430,6 @@ export const MarkdownRenderer = ({ content }) => {
             const codeString = String(children || '').replace(/\n$/, '');
             const isInline = !match && !String(children || '').includes('\n');
 
-            // Render Inline Code
             if (isInline) {
               return (
                 <code
@@ -331,12 +449,10 @@ export const MarkdownRenderer = ({ content }) => {
               );
             }
 
-            // Render Interactive Mermaid Diagrams
             if (language === 'mermaid') {
               return <MermaidDiagram content={codeString} />;
             }
 
-            // Render Code Block with Language Badge & Copy Button
             return <CodeBlock language={language} codeString={codeString} isDark={isDark} />;
           },
           table: ({ node, ...props }) => (
@@ -351,63 +467,19 @@ export const MarkdownRenderer = ({ content }) => {
               />
             </div>
           ),
-          th: ({ node, ...props }) => (
-            <th
-              style={{
-                backgroundColor: 'var(--bg-secondary)',
-                padding: '0.65rem 0.9rem',
-                textAlign: 'left',
-                fontWeight: 600,
-                borderBottom: '1px solid var(--border-color)',
-                color: 'var(--text-primary)',
-                fontSize: '0.75rem',
-                fontFamily: 'var(--font-mono)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em',
-              }}
-              {...props}
-            />
+          strong: ({ node, children, ...props }) => (
+            <strong style={{ fontWeight: 600, color: 'var(--text-primary)' }} {...props}>
+              <FormattedMathText>{children}</FormattedMathText>
+            </strong>
           ),
-          td: ({ node, ...props }) => (
-            <td
-              style={{
-                padding: '0.55rem 0.9rem',
-                borderBottom: '1px solid var(--border-color)',
-                color: 'var(--text-secondary)',
-              }}
-              {...props}
-            />
-          ),
-          strong: ({ node, ...props }) => (
-            <strong style={{ fontWeight: 600, color: 'var(--text-primary)' }} {...props} />
-          ),
-          em: ({ node, ...props }) => (
-            <em style={{ fontStyle: 'italic', color: 'var(--text-primary)' }} {...props} />
-          ),
-          del: ({ node, ...props }) => (
-            <del style={{ textDecoration: 'line-through', color: 'var(--text-muted)' }} {...props} />
+          em: ({ node, children, ...props }) => (
+            <em style={{ fontStyle: 'italic', color: 'var(--text-primary)' }} {...props}>
+              <FormattedMathText>{children}</FormattedMathText>
+            </em>
           ),
           hr: ({ node, ...props }) => (
             <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '1.5rem 0' }} {...props} />
           ),
-          input: ({ node, type, checked, ...props }) => {
-            if (type === 'checkbox') {
-              return (
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  readOnly
-                  style={{
-                    marginRight: '0.5rem',
-                    accentColor: 'var(--accent-amber)',
-                    cursor: 'default',
-                  }}
-                  {...props}
-                />
-              );
-            }
-            return <input type={type} {...props} />;
-          },
         }}
       >
         {normalizedText}
@@ -415,4 +487,5 @@ export const MarkdownRenderer = ({ content }) => {
     </div>
   );
 };
+
 
