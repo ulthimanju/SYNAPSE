@@ -76,13 +76,18 @@ class WorkspaceService:
         # 1. Check Redis Cache first (sub-millisecond hit!)
         cached_list = await redis_cache_manager.get_json_cache(cache_key)
         if cached_list is not None and isinstance(cached_list, list):
-            logger.info(f"⚡ [REDIS WORKSPACE LIST HIT] Bypassed SQL query for user ID '{user_id[:8]}'")
+            logger.info(f"⚡ [REDIS WORKSPACE LIST HIT] Bypassed query for user ID '{user_id[:8]}'")
             return [WorkspaceRead.model_validate(w) for w in cached_list]
 
-        # 2. Query PostgreSQL on cache miss
+        # 2. Query memberships AND owned workspaces directly
         memberships = await self.membership_repo.list_by_user(user_id, email)
-        ws_ids = [m.workspace_id for m in memberships]
-        workspaces = await self.workspace_repo.list_by_ids(ws_ids)
+        ws_ids_from_mem = [m.workspace_id for m in memberships]
+
+        owned_workspaces = await self.workspace_repo.list_by_owner(user_id)
+        owned_ws_ids = [str(w.id) for w in owned_workspaces]
+
+        all_ws_ids = list(set(ws_ids_from_mem + owned_ws_ids))
+        workspaces = await self.workspace_repo.list_by_ids(all_ws_ids)
 
         mem_map = {m.workspace_id: m for m in memberships}
 
@@ -188,15 +193,28 @@ class WorkspaceService:
         if not workspace:
             raise NotFoundException("Workspace not found")
 
-        if workspace.owner_id != user_id:
+        membership = await self.membership_repo.get_membership(workspace_id, user_id)
+        is_owner = workspace.owner_id == user_id or (membership and membership.role == "owner")
+        if not is_owner:
             raise ForbiddenException("Only the workspace owner can delete this workspace")
+
+        # Fetch all members to invalidate their Redis workspace caches
+        members = await self.membership_repo.list_by_workspace(workspace_id)
+        member_user_ids = {m.user_id for m in members if m.user_id}
+        if workspace.owner_id:
+            member_user_ids.add(workspace.owner_id)
 
         # Cascade delete across all related MongoDB collections
         await self.cascade_delete_workspace_data(workspace_id)
         await self.workspace_repo.delete(workspace)
 
-        # Invalidate Redis cache for user
-        await self._invalidate_user_workspace_cache(user_id)
+        # Invalidate Redis cache for all members of this workspace
+        for uid in member_user_ids:
+            await self._invalidate_user_workspace_cache(uid)
+
+        # Invalidate workspace detail and learning path caches
+        await redis_cache_manager.delete_cache(f"ws_detail:{workspace_id}:{user_id}")
+        await redis_cache_manager.delete_cache(f"lp_cache:{workspace_id}")
         return True
 
     async def _check_user_exists_by_email(self, email: str) -> str | None:
@@ -250,7 +268,7 @@ class WorkspaceService:
         cleaned_email = email.strip().lower()
         target_user_id = await self._check_user_exists_by_email(cleaned_email)
         if not target_user_id:
-            raise NotFoundException("User not found in database. Only registered users can be invited.")
+            target_user_id = cleaned_email
 
         membership = await self.membership_repo.create(
             workspace_id=workspace_id,
@@ -259,8 +277,10 @@ class WorkspaceService:
             role=role
         )
 
-        # Invalidate target user's workspace cache
+        # Invalidate target user's workspace cache for both user_id and email
         await self._invalidate_user_workspace_cache(target_user_id)
+        if cleaned_email != target_user_id:
+            await self._invalidate_user_workspace_cache(cleaned_email)
 
         return {
             "id": str(membership.id),

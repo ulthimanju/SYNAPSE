@@ -249,7 +249,7 @@ export const WorkspaceSwitcher = () => {
                 {displayedWorkspaces.map((ws) => {
                   const isActive = ws.id === activeWorkspaceId;
                   const isHovered = hoveredWsId === ws.id;
-                  const canDelete = ws.is_owner !== false && ws.role !== 'collaborator';
+                  const canDelete = ws.is_owner === true || ws.role === 'owner';
 
                   return (
                     <div

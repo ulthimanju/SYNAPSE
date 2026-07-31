@@ -38,6 +38,10 @@ class WorkspaceRepository:
         if not include_archived:
             query.append(Workspace.is_archived == False)
 
+    async def list_by_owner(self, owner_id: str, include_archived: bool = False) -> List[Workspace]:
+        query = [Workspace.owner_id == owner_id]
+        if not include_archived:
+            query.append(Workspace.is_archived == False)
         return await Workspace.find(*query).to_list()
 
     async def update(self, workspace: Workspace, **kwargs) -> Workspace:

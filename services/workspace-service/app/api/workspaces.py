@@ -7,7 +7,7 @@ from shared.auth import get_current_user, AuthenticatedUser
 from shared.exceptions import NotFoundException, ForbiddenException
 from ..services.workspace_service import WorkspaceService
 from ..services.job_worker import AIJobWorker
-from ..schemas.workspace import WorkspaceCreate, WorkspaceUpdate, WorkspaceRead, WorkspaceTitleRead, CollaboratorInvite
+from ..schemas.workspace import WorkspaceCreate, WorkspaceUpdate, WorkspaceRead, WorkspaceTitleRead, CollaboratorInvite, CollaboratorUpdate
 from ..models.workspace_summary import WorkspaceSummary
 from ..models.learning_path import LearningPath
 from ..models.learning_unit_content import LearningUnitContent
