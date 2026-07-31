@@ -7,6 +7,8 @@ from ..repositories.message_repository import MessageRepository
 from .retrieval_service import RetrievalService
 from ..prompts.rag_chat import RAG_CHAT_SYSTEM_PROMPT, build_rag_chat_prompt
 
+from shared.cache.redis_client import redis_cache_manager, CacheKeys
+
 logger = logging.getLogger(__name__)
 
 class ChatService:
@@ -22,11 +24,10 @@ class ChatService:
         self.msg_repo = msg_repo or MessageRepository()
         self.retrieval_service = retrieval_service or RetrievalService()
 
-    async def process_chat(self, workspace_id: str, query: str) -> Dict[str, Any]:
+    async def process_chat(self, workspace_id: str, query: str, user_id: str = "default_user") -> Dict[str, Any]:
         """Processes a chat turn using Redis session caching, RAG retrieval, and async background message persistence."""
         import asyncio
-        from shared.cache.redis_client import redis_cache_manager
-        cache_key = f"chat_session:{workspace_id}"
+        cache_key = CacheKeys.chat_session(workspace_id, user_id)
 
         # 1. Optimization 2: Check Redis Session Cache first (0 MongoDB Reads!)
         conv_id = None
@@ -126,6 +127,7 @@ class ChatService:
         conv = await ConversationRepository().get_or_create_conversation(workspace_id)
         conv_id = str(conv.id)
         deleted = await self.msg_repo.delete_conversation_messages(conv_id)
+        await redis_cache_manager.delete_pattern(CacheKeys.chat_session_pattern(workspace_id))
         logger.info(f"Cleared {deleted} chat messages for workspace {workspace_id}")
 
     async def _generate_llm_answer(self, prompt: str, chunks: Optional[List[Dict[str, Any]]] = None) -> str:

@@ -64,8 +64,7 @@ class AuthService:
 
         # 4. Cache user profile in Redis for fast /auth/me lookups (15-min TTL)
         try:
-            client = await redis_cache_manager.get_client()
-            await client.set(f"user_profile:{str(user.id)}", user_read.model_dump_json(), ex=900)
+            await redis_cache_manager.set_json_cache(CacheKeys.user_profile(str(user.id)), user_read.model_dump(mode="json"), ttl_seconds=900)
             logger.info(f"💾 [REDIS PROFILE CACHED] Cached user profile for '{user.email}' (15m TTL)")
         except Exception as exc:
             logger.warning(f"Redis profile cache save notice: {exc}")
@@ -82,11 +81,10 @@ class AuthService:
         """Returns UserRead profile for current authenticated user ID, leveraging Redis caching."""
         # 1. Check Redis cache first (sub-millisecond hit!)
         try:
-            client = await redis_cache_manager.get_client()
-            cached_json = await client.get(f"user_profile:{user_id_str}")
-            if cached_json:
+            cached_data = await redis_cache_manager.get_json_cache(CacheKeys.user_profile(user_id_str))
+            if cached_data:
                 logger.info(f"⚡ [REDIS PROFILE CACHE HIT] Bypassed SQL query for user ID '{user_id_str[:8]}'")
-                return UserRead.model_validate_json(cached_json)
+                return UserRead.model_validate(cached_data)
         except Exception as exc:
             logger.warning(f"Redis profile cache lookup notice: {exc}")
 
@@ -104,8 +102,7 @@ class AuthService:
 
         # 3. Cache user profile in Redis for 15 minutes (900 seconds)
         try:
-            client = await redis_cache_manager.get_client()
-            await client.set(f"user_profile:{user_id_str}", user_read.model_dump_json(), ex=900)
+            await redis_cache_manager.set_json_cache(CacheKeys.user_profile(user_id_str), user_read.model_dump(mode="json"), ttl_seconds=900)
         except Exception as exc:
             logger.warning(f"Redis profile cache save notice: {exc}")
 

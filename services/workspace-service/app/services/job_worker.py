@@ -10,6 +10,8 @@ from ..models.learning_path import LearningPath
 from ..models.flashcard import Flashcard
 from ..models.quiz import Quiz
 
+from shared.cache.redis_client import redis_cache_manager, CacheKeys
+
 logger = logging.getLogger(__name__)
 
 class AIJobWorker:
@@ -260,8 +262,7 @@ class AIJobWorker:
 
             # Invalidate Redis Learning Path cache on fresh generation
             try:
-                from shared.cache.redis_client import redis_cache_manager
-                await redis_cache_manager.delete_cache(f"lp_cache:{ws_id}")
+                await redis_cache_manager.delete_cache(CacheKeys.lp_cache(ws_id))
                 logger.info(f"🧹 [REDIS CACHE INVALIDATED] Cleared lp_cache for workspace '{ws_id[:8]}'")
             except Exception as cache_exc:
                 logger.warning(f"Learning path cache invalidation notice: {cache_exc}")
@@ -397,8 +398,7 @@ class AIJobWorker:
                         )
                         await saved.insert()
 
-                        from shared.cache.redis_client import redis_cache_manager
-                        cache_key = f"unit_content:{workspace_id}:{unit_id}"
+                        cache_key = CacheKeys.unit_content(workspace_id, unit_id)
                         cache_payload = {
                             "workspace_id": workspace_id,
                             "unit_id": unit_id,

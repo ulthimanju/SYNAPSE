@@ -8,6 +8,8 @@ from ..clients.factory import get_ai_provider
 from ..prompts.unit_content import UNIT_CONTENT_SYSTEM_PROMPT, build_unit_content_prompt
 from ..schemas.unit_content import UnitContentRequest, UnitContentResponse, UnitFlashcard, UnitQuiz, UnitQuizQuestion
 
+from shared.cache.redis_client import redis_cache_manager, CacheKeys
+
 logger = logging.getLogger(__name__)
 
 class UnitContentService:
@@ -31,7 +33,7 @@ class UnitContentService:
         
         # 2. Retrieve relevant grounding context chunks from Redis Cache or RAG Service (pgvector)
         query_hash = hashlib.sha256(rag_query.encode("utf-8")).hexdigest()[:16]
-        cache_key = f"rag_chunks:{req.workspace_id}:{query_hash}"
+        cache_key = CacheKeys.rag_chunks(req.workspace_id, query_hash)
 
         cached_chunks = await redis_cache_manager.get_json_cache(cache_key)
         if cached_chunks is not None and isinstance(cached_chunks, list):

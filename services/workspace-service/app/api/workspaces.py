@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Path, status, Response
 from shared.schemas import APIResponse
 from shared.auth import get_current_user, AuthenticatedUser
 from shared.exceptions import NotFoundException, ForbiddenException
+from shared.cache.redis_client import redis_cache_manager, CacheKeys
 from ..services.workspace_service import WorkspaceService
 from ..services.job_worker import AIJobWorker
 from ..schemas.workspace import WorkspaceCreate, WorkspaceUpdate, WorkspaceRead, WorkspaceTitleRead, CollaboratorInvite, CollaboratorUpdate
@@ -190,6 +191,9 @@ async def clear_workspace_chat_history(
     if not membership:
         raise ForbiddenException("You are not authorized to clear chat history in this workspace")
 
+    # Invalidate Redis chat session cache for all workspace members
+    await redis_cache_manager.delete_pattern(CacheKeys.chat_session_pattern(workspace_id))
+
     from shared.config.settings import settings
     rag_service_url = f"{settings.rag_service_url}/chat/history?workspace_id={workspace_id}"
     try:
@@ -320,8 +324,7 @@ async def get_workspace_learning_path(
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> APIResponse[dict]:
     """Retrieves cached learning path and hierarchical knowledge graph from Redis cache or MongoDB."""
-    from shared.cache.redis_client import redis_cache_manager
-    cache_key = f"lp_cache:{workspace_id}"
+    cache_key = CacheKeys.lp_cache(workspace_id)
 
     # 1. Check Redis Cache first (sub-millisecond hit!)
     cached_payload = await redis_cache_manager.get_json_cache(cache_key)
@@ -412,8 +415,7 @@ async def get_or_generate_unit_content(
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> APIResponse[dict]:
     """Retrieves cached unit content (Summary + Flashcards + Quiz) from Redis cache/MongoDB or generates on-demand via AI Service."""
-    from shared.cache.redis_client import redis_cache_manager
-    cache_key = f"unit_content:{workspace_id}:{unit_id}"
+    cache_key = CacheKeys.unit_content(workspace_id, unit_id)
 
     # Smart Pre-loading: Trigger background pre-generation for the succeeding unit (Unit N+1)
     asyncio.create_task(_trigger_succeeding_unit_pregeneration(workspace_id, unit_id))

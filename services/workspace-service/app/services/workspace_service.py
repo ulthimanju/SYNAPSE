@@ -1,6 +1,6 @@
 import logging
 from typing import List
-from shared.cache.redis_client import redis_cache_manager
+from shared.cache.redis_client import redis_cache_manager, CacheKeys
 from shared.exceptions import NotFoundException, ForbiddenException, BadRequestException
 from ..repositories.workspace_repository import WorkspaceRepository
 from ..repositories.membership_repository import MembershipRepository
@@ -20,10 +20,10 @@ class WorkspaceService:
         self.membership_repo = membership_repo or MembershipRepository()
 
     async def _invalidate_user_workspace_cache(self, user_id: str):
-        """Invalidates user workspace cache in Redis upon mutation."""
+        """Invalidates user workspace list and workspace detail caches in Redis upon mutation."""
         try:
-            await redis_cache_manager.delete_cache(f"user_workspaces:{user_id}")
-            logger.info(f"🧹 [REDIS CACHE INVALIDATED] Cleared user_workspaces cache for user '{user_id[:8]}'")
+            await redis_cache_manager.delete_cache(CacheKeys.user_workspaces(user_id))
+            logger.info(f"🧹 [REDIS INVALIDATED] user_workspaces for user '{user_id[:8]}'")
         except Exception as exc:
             logger.warning(f"Cache invalidation notice: {exc}")
 
@@ -71,12 +71,12 @@ class WorkspaceService:
 
     async def list_user_workspaces(self, user_id: str, email: str | None = None) -> List[WorkspaceRead]:
         """Lists all workspaces accessible by the user via membership or ownership, with Redis caching."""
-        cache_key = f"user_workspaces:{user_id}"
-        
+        cache_key = CacheKeys.user_workspaces(user_id)
+
         # 1. Check Redis Cache first (sub-millisecond hit!)
         cached_list = await redis_cache_manager.get_json_cache(cache_key)
         if cached_list is not None and isinstance(cached_list, list):
-            logger.info(f"⚡ [REDIS WORKSPACE LIST HIT] Bypassed query for user ID '{user_id[:8]}'")
+            logger.info(f"⚡ [REDIS WORKSPACE LIST HIT] Bypassed query for user '{user_id[:8]}'")
             return [WorkspaceRead.model_validate(w) for w in cached_list]
 
         # 2. Query memberships AND owned workspaces directly
@@ -119,7 +119,7 @@ class WorkspaceService:
 
     async def get_workspace_detail(self, user_id: str, workspace_id: str, email: str | None = None) -> WorkspaceRead:
         """Fetches workspace details after verifying user membership with Redis caching."""
-        cache_key = f"ws_detail:{workspace_id}:{user_id}"
+        cache_key = CacheKeys.ws_detail(workspace_id, user_id)
         cached = await redis_cache_manager.get_json_cache(cache_key)
         if cached is not None and isinstance(cached, dict):
             logger.info(f"⚡ [REDIS WORKSPACE DETAIL HIT] Bypassed SQL query for workspace '{workspace_id[:8]}'")
@@ -152,7 +152,7 @@ class WorkspaceService:
             updated_at=workspace.updated_at,
         )
 
-        await redis_cache_manager.set_json_cache(cache_key, result.model_dump(mode="json"), ttl_seconds=3600)
+        await redis_cache_manager.set_json_cache(CacheKeys.ws_detail(workspace_id, user_id), result.model_dump(mode="json"), ttl_seconds=3600)
         return result
 
     async def update_workspace(self, user_id: str, workspace_id: str, payload: WorkspaceUpdate) -> WorkspaceRead:
@@ -171,8 +171,10 @@ class WorkspaceService:
             is_archived=payload.is_archived,
         )
 
-        # Invalidate Redis cache for user
+        # Invalidate workspace list cache for owner + all members' ws_detail caches
         await self._invalidate_user_workspace_cache(user_id)
+        await redis_cache_manager.delete_pattern(CacheKeys.ws_detail_pattern(workspace_id))
+        logger.info(f"🧹 [REDIS INVALIDATED] ws_detail:* for workspace '{workspace_id[:8]}'")
 
         return WorkspaceRead(
             id=str(updated_ws.id),
@@ -212,9 +214,12 @@ class WorkspaceService:
         for uid in member_user_ids:
             await self._invalidate_user_workspace_cache(uid)
 
-        # Invalidate workspace detail and learning path caches
-        await redis_cache_manager.delete_cache(f"ws_detail:{workspace_id}:{user_id}")
-        await redis_cache_manager.delete_cache(f"lp_cache:{workspace_id}")
+        # Wildcard-invalidate all per-user ws_detail, chat session, learning path and unit caches
+        await redis_cache_manager.delete_pattern(CacheKeys.ws_detail_pattern(workspace_id))
+        await redis_cache_manager.delete_pattern(CacheKeys.chat_session_pattern(workspace_id))
+        await redis_cache_manager.delete_pattern(CacheKeys.unit_content_pattern(workspace_id))
+        await redis_cache_manager.delete_cache(CacheKeys.lp_cache(workspace_id))
+        logger.info(f"🧹 [REDIS FULL INVALIDATION] Cleared all caches for deleted workspace '{workspace_id[:8]}'")
         return True
 
     async def _check_user_exists_by_email(self, email: str) -> str | None:
