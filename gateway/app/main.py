@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from shared.config.settings import settings
 
+from shared.clients.base import get_shared_httpx_client
+
 logger = logging.getLogger("synapse-gateway")
 
 app = FastAPI(
@@ -31,9 +33,7 @@ async def health_check():
     return {"status": "healthy", "service": "synapse-gateway", "version": "1.0.0"}
 
 async def proxy_request(target_url: str, request: Request) -> Response:
-    """Reverse proxies incoming HTTP request to target microservice.
-    Streams raw body bytes so multipart/form-data boundaries are preserved exactly.
-    """
+    """Reverse proxies incoming HTTP request to target microservice using pooled keep-alive HTTP client."""
     if request.method == "OPTIONS":
         return Response(status_code=200)
 
@@ -41,25 +41,27 @@ async def proxy_request(target_url: str, request: Request) -> Response:
     headers = {k: v for k, v in request.headers.items() if k.lower() != "host"}
 
     try:
-        async with httpx.AsyncClient(timeout=120.0, follow_redirects=False) as client:
-            resp = await client.request(
-                method=request.method,
-                url=target_url,
-                headers=headers,
-                params=dict(request.query_params),
-                content=body,
-            )
+        client = get_shared_httpx_client()
+        resp = await client.request(
+            method=request.method,
+            url=target_url,
+            headers=headers,
+            params=dict(request.query_params),
+            content=body,
+            timeout=120.0,
+            follow_redirects=False,
+        )
 
-            # Handle 302/301 OAuth redirects cleanly
-            if resp.status_code in (301, 302, 303, 307, 308) and "location" in resp.headers:
-                return RedirectResponse(url=resp.headers["location"], status_code=resp.status_code)
+        # Handle 302/301 OAuth redirects cleanly
+        if resp.status_code in (301, 302, 303, 307, 308) and "location" in resp.headers:
+            return RedirectResponse(url=resp.headers["location"], status_code=resp.status_code)
 
-            return Response(
-                content=resp.content,
-                status_code=resp.status_code,
-                headers=dict(resp.headers),
-                media_type=resp.headers.get("content-type"),
-            )
+        return Response(
+            content=resp.content,
+            status_code=resp.status_code,
+            headers=dict(resp.headers),
+            media_type=resp.headers.get("content-type"),
+        )
     except Exception as exc:
         logger.error(f"Gateway proxy error to {target_url}: {exc}")
         return JSONResponse(

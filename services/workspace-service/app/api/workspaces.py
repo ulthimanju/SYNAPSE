@@ -4,8 +4,9 @@ import httpx
 from fastapi import APIRouter, Depends, Path, status, Response
 from shared.schemas import APIResponse
 from shared.auth import get_current_user, AuthenticatedUser
-from shared.exceptions import NotFoundException, ForbiddenException
+from shared.exceptions import NotFoundException, ForbiddenException, ServiceUnavailableException
 from shared.cache.redis_client import redis_cache_manager, CacheKeys
+from shared.clients.base import get_shared_httpx_client
 from ..services.workspace_service import WorkspaceService
 from ..services.job_worker import AIJobWorker
 from ..schemas.workspace import WorkspaceCreate, WorkspaceUpdate, WorkspaceRead, WorkspaceTitleRead, CollaboratorInvite, CollaboratorUpdate
@@ -124,10 +125,10 @@ async def retrieve_workspace_chunks(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            res = await client.post(rag_service_url, json={"workspace_id": workspace_id, "query": query, "top_k": top_k})
-            if res.status_code == 200:
-                retrieval_data = res.json().get("data", retrieval_data)
+        client = get_shared_httpx_client()
+        res = await client.post(rag_service_url, json={"workspace_id": workspace_id, "query": query, "top_k": top_k}, timeout=10.0)
+        if res.status_code == 200:
+            retrieval_data = res.json().get("data", retrieval_data)
     except Exception as exc:
         print(f"RAG Service connection notice: {exc}")
 
@@ -150,13 +151,13 @@ async def workspace_chat_turn(
     rag_service_url = f"{settings.rag_service_url}/chat"
 
     try:
-        async with httpx.AsyncClient(timeout=None) as client:
-            res = await client.post(rag_service_url, json={"workspace_id": workspace_id, "query": query})
-            if res.status_code == 200:
-                chat_data = res.json().get("data", {})
-                return APIResponse(message="Workspace chat turn processed.", data=chat_data)
-            else:
-                raise ServiceUnavailableException(f"RAG Service returned status {res.status_code}")
+        client = get_shared_httpx_client()
+        res = await client.post(rag_service_url, json={"workspace_id": workspace_id, "query": query})
+        if res.status_code == 200:
+            chat_data = res.json().get("data", {})
+            return APIResponse(message="Workspace chat turn processed.", data=chat_data)
+        else:
+            raise ServiceUnavailableException(f"RAG Service returned status {res.status_code}")
     except Exception as exc:
         logger.error(f"RAG Service connection error: {exc}")
         raise ServiceUnavailableException("RAG Service is currently unavailable. Please try again.")
@@ -177,10 +178,10 @@ async def get_workspace_chat_history(
     history_data = []
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            res = await client.get(rag_service_url)
-            if res.status_code == 200:
-                history_data = res.json().get("data", history_data)
+        client = get_shared_httpx_client()
+        res = await client.get(rag_service_url, timeout=10.0)
+        if res.status_code == 200:
+            history_data = res.json().get("data", history_data)
     except Exception as exc:
         print(f"RAG Service connection notice: {exc}")
 
@@ -203,8 +204,8 @@ async def clear_workspace_chat_history(
     from shared.config.settings import settings
     rag_service_url = f"{settings.rag_service_url}/chat/history?workspace_id={workspace_id}"
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            await client.delete(rag_service_url)
+        client = get_shared_httpx_client()
+        await client.delete(rag_service_url, timeout=10.0)
     except Exception as exc:
         print(f"RAG Service connection notice: {exc}")
 
