@@ -5,28 +5,31 @@ export const AuthLayout = ({ children }) => {
     <div className="min-h-screen w-full flex flex-col md:flex-row bg-slate-50">
       {/* Left Blueprint Grid Banner Panel */}
       <div className="relative w-full md:w-1/2 bg-[#1d3d9e] text-white p-8 md:p-14 flex flex-col justify-between overflow-hidden min-h-[400px] md:min-h-screen">
-        {/* SVG Blueprint Grid Background Overlay */}
+        {/* Enhanced SVG Blueprint Grid Background Overlay */}
         <div
-          className="absolute inset-0 pointer-events-none opacity-25"
+          className="absolute inset-0 pointer-events-none opacity-80"
           style={{
             backgroundImage: `
-              linear-gradient(to right, rgba(255,255,255,0.15) 1px, transparent 1px),
-              linear-gradient(to bottom, rgba(255,255,255,0.15) 1px, transparent 1px)
+              linear-gradient(to right, rgba(255,255,255,0.4) 1px, transparent 1px),
+              linear-gradient(to bottom, rgba(255,255,255,0.4) 1px, transparent 1px),
+              linear-gradient(to right, rgba(255,255,255,0.6) 1.5px, transparent 1.5px),
+              linear-gradient(to bottom, rgba(255,255,255,0.6) 1.5px, transparent 1.5px)
             `,
-            backgroundSize: '48px 48px',
+            backgroundSize: '40px 40px, 40px 40px, 200px 200px, 200px 200px',
           }}
         />
 
         {/* Blueprint Curved Line Accents */}
         <svg
-          className="absolute top-0 right-0 w-[600px] h-[600px] text-white/10 pointer-events-none transform translate-x-1/4 -translate-y-1/4"
+          className="absolute top-0 right-0 w-[700px] h-[700px] text-white/30 pointer-events-none transform translate-x-1/4 -translate-y-1/4"
           fill="none"
           stroke="currentColor"
-          strokeWidth="1"
+          strokeWidth="1.5"
           viewBox="0 0 500 500"
         >
-          <circle cx="250" cy="250" r="200" strokeDasharray="4 4" />
+          <circle cx="250" cy="250" r="200" strokeDasharray="6 6" />
           <circle cx="250" cy="250" r="300" />
+          <circle cx="250" cy="250" r="400" strokeDasharray="3 3" />
         </svg>
 
         {/* Top Logo Brand Header */}
