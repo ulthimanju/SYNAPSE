@@ -1,0 +1,134 @@
+import React from 'react';
+import { FileText, Check, Info, Trash2, RefreshCw, AlertCircle } from 'lucide-react';
+import { FileUploadCard } from './FileUploadCard';
+
+export const DocumentsTab = ({ documents = [], onUpload, onDelete, onRetry, isUploading, isDeleting }) => {
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'Jul 31, 2026';
+    try {
+      return new Date(dateStr).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const formatSize = (bytes) => {
+    if (!bytes) return '0.00 MB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+  };
+
+  return (
+    <div className="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+      {/* Left Documents List */}
+      <div className="lg:col-span-2 space-y-6">
+        {/* Section Title */}
+        <div className="flex items-center gap-2">
+          <h2 className="text-xs font-mono font-bold tracking-widest text-slate-400 uppercase">
+            WORKSPACE DOCUMENTS
+          </h2>
+          <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-blueprint-500/20 text-blueprint-300">
+            {documents.length}
+          </span>
+        </div>
+
+        {/* Document Rows */}
+        {documents.length === 0 ? (
+          <div className="p-12 text-center rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
+            <FileText className="w-10 h-10 text-slate-600 mx-auto" />
+            <p className="text-slate-300 font-medium text-sm">No documents uploaded yet</p>
+            <p className="text-slate-500 text-xs max-w-md mx-auto">
+              Upload your study PDFs, lecture notes, or docs using the panel on the right to start building your neural workspace.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {documents.map((doc) => {
+              const isProcessed = doc.status === 'PROCESSED' || doc.status === 'COMPLETED' || doc.status === 'SUCCESS';
+              const isFailed = doc.status === 'FAILED' || doc.status === 'ERROR';
+              const isProcessing = doc.status === 'PROCESSING' || doc.status === 'PENDING';
+
+              return (
+                <div
+                  key={doc.id || doc._id}
+                  className="flex items-center justify-between p-5 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition shadow-sm group"
+                >
+                  {/* Left Metadata */}
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-11 h-11 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 flex-shrink-0">
+                      <FileText className="w-5.5 h-5.5" />
+                    </div>
+
+                    <div className="min-w-0 truncate space-y-0.5">
+                      <h4 className="font-semibold text-sm text-white truncate font-sans">
+                        {doc.filename}
+                      </h4>
+                      <p className="text-xs text-slate-400 font-mono">
+                        {formatSize(doc.file_size)} • {formatDate(doc.created_at)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Right Status & Actions */}
+                  <div className="flex items-center gap-4 flex-shrink-0 ml-4">
+                    {/* Status Badge */}
+                    {isProcessed && (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-cyan-400">
+                        <Check className="w-4 h-4" />
+                        <span>Uploaded</span>
+                      </span>
+                    )}
+
+                    {isProcessing && (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-400 animate-pulse">
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Parsing...</span>
+                      </span>
+                    )}
+
+                    {isFailed && (
+                      <button
+                        onClick={() => onRetry && onRetry(doc.id || doc._id)}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-400 hover:underline cursor-pointer"
+                      >
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        <span>Retry</span>
+                      </button>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-1">
+                      <button
+                        className="p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition"
+                        title="Document Details"
+                      >
+                        <Info className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        onClick={() => onDelete(doc.id || doc._id)}
+                        disabled={isDeleting}
+                        className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"
+                        title="Delete Document"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Right File Upload Card */}
+      <div className="flex justify-center">
+        <FileUploadCard onUpload={onUpload} isUploading={isUploading} />
+      </div>
+    </div>
+  );
+};

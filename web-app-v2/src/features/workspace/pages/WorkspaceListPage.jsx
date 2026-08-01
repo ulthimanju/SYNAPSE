@@ -1,0 +1,112 @@
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useWorkspaces } from '../hooks/useWorkspaces';
+import { Folder, Plus, Trash2, ArrowRight, BookOpen, Layers } from 'lucide-react';
+import { CreateWorkspaceModal } from '../components/CreateWorkspaceModal';
+
+export const WorkspaceListPage = () => {
+  const navigate = useNavigate();
+  const { workspaces, isLoading, createWorkspace, isCreating, deleteWorkspace, isDeleting } = useWorkspaces();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  return (
+    <div className="w-full max-w-7xl mx-auto space-y-8 animate-fadeIn">
+      {/* Top Banner */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-8 rounded-3xl bg-slate-900 border border-slate-800 shadow-xl">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold text-white tracking-tight font-sans">Your Neural Workspaces</h1>
+          <p className="text-xs text-slate-400">Select an active domain to view documents, RAG assistant, and learning paths</p>
+        </div>
+
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-blueprint-600 hover:bg-blueprint-500 text-white font-semibold text-xs shadow-lg shadow-blueprint-600/30 transition active:scale-98 cursor-pointer"
+        >
+          <Plus className="w-4 h-4" />
+          <span>New Workspace</span>
+        </button>
+      </div>
+
+      {/* Grid of Workspaces */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-48 rounded-3xl bg-slate-900/60 border border-slate-800 animate-pulse" />
+          ))}
+        </div>
+      ) : workspaces.length === 0 ? (
+        <div className="p-16 text-center rounded-3xl bg-slate-900/60 border border-slate-800 space-y-4">
+          <Folder className="w-12 h-12 text-slate-600 mx-auto" />
+          <p className="text-white font-semibold text-base">No Workspaces Found</p>
+          <p className="text-slate-400 text-xs max-w-sm mx-auto">
+            Get started by creating your first workspace to upload study materials and trigger AI summaries.
+          </p>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-blueprint-600 hover:bg-blueprint-500 text-white font-semibold text-xs transition cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create Workspace</span>
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {workspaces.map((ws) => (
+            <div
+              key={ws.id}
+              onClick={() => navigate(`/workspaces/${ws.id}`)}
+              className="p-6 rounded-3xl bg-slate-900/90 border border-slate-800 hover:border-blueprint-500/50 transition duration-300 shadow-lg cursor-pointer flex flex-col justify-between group"
+            >
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 group-hover:scale-105 transition">
+                    <Folder className="w-6 h-6" />
+                  </div>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirm(`Are you sure you want to delete '${ws.name}'?`)) {
+                        deleteWorkspace(ws.id);
+                      }
+                    }}
+                    className="p-2 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer opacity-0 group-hover:opacity-100"
+                    title="Delete Workspace"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-1">
+                  <h3 className="font-bold text-lg text-white font-sans truncate">{ws.name}</h3>
+                  <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                    {ws.description || 'No description provided.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-6 border-t border-slate-800/80 flex items-center justify-between mt-6">
+                <span className="text-[11px] font-mono text-slate-500">
+                  {ws.document_count || 0} documents
+                </span>
+
+                <div className="flex items-center gap-1 text-xs font-semibold text-blueprint-400 group-hover:text-blueprint-300 transition">
+                  <span>Open Workspace</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Create Modal */}
+      <CreateWorkspaceModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onCreate={createWorkspace}
+        isCreating={isCreating}
+      />
+    </div>
+  );
+};

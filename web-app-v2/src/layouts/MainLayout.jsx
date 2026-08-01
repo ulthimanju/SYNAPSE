@@ -30,9 +30,16 @@ export const MainLayout = () => {
           <nav className="space-y-2">
             <Link
               to="/dashboard"
+              className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-900 text-slate-300 hover:text-white font-medium text-sm border border-transparent hover:border-slate-800 transition"
+            >
+              <LayoutDashboard className="w-4 h-4 text-blueprint-400" />
+              <span>Dashboard</span>
+            </Link>
+            <Link
+              to="/workspaces"
               className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-900 text-blueprint-400 font-medium text-sm border border-slate-800"
             >
-              <LayoutDashboard className="w-4 h-4" />
+              <FolderGit2 className="w-4 h-4 text-blueprint-400" />
               <span>Workspaces</span>
             </Link>
           </nav>

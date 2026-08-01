@@ -13,6 +13,9 @@ import { DashboardPage } from './pages/DashboardPage';
 
 import './index.css';
 
+import { WorkspaceListPage } from './features/workspace/pages/WorkspaceListPage';
+import { WorkspaceDetailPage } from './features/workspace/pages/WorkspaceDetailPage';
+
 // Initialize TanStack Query Client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -41,6 +44,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route element={<ProtectedRoute />}>
             <Route element={<MainLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/workspaces" element={<WorkspaceListPage />} />
+              <Route path="/workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
             </Route>
           </Route>
