@@ -27,20 +27,20 @@ export const DocumentsTab = ({ documents = [], onUpload, onDelete, onRetry, isUp
       <div className="lg:col-span-2 space-y-6">
         {/* Section Title */}
         <div className="flex items-center gap-2">
-          <h2 className="text-xs font-mono font-bold tracking-widest text-slate-400 uppercase">
+          <h2 className="text-xs font-mono font-extrabold tracking-widest text-slate-400 uppercase">
             WORKSPACE DOCUMENTS
           </h2>
-          <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-blueprint-500/20 text-blueprint-300">
+          <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-[#cff4fc] text-[#0891b2]">
             {documents.length}
           </span>
         </div>
 
-        {/* Document Rows */}
+        {/* Document Cards */}
         {documents.length === 0 ? (
-          <div className="p-12 text-center rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
-            <FileText className="w-10 h-10 text-slate-600 mx-auto" />
-            <p className="text-slate-300 font-medium text-sm">No documents uploaded yet</p>
-            <p className="text-slate-500 text-xs max-w-md mx-auto">
+          <div className="p-12 text-center rounded-2xl bg-white border border-slate-200/80 shadow-sm space-y-3">
+            <FileText className="w-10 h-10 text-slate-300 mx-auto" />
+            <p className="text-slate-800 font-semibold text-sm">No documents uploaded yet</p>
+            <p className="text-slate-400 text-xs max-w-md mx-auto">
               Upload your study PDFs, lecture notes, or docs using the panel on the right to start building your neural workspace.
             </p>
           </div>
@@ -54,16 +54,16 @@ export const DocumentsTab = ({ documents = [], onUpload, onDelete, onRetry, isUp
               return (
                 <div
                   key={doc.id || doc._id}
-                  className="flex items-center justify-between p-5 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition shadow-sm group"
+                  className="flex items-center justify-between p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-slate-300 transition shadow-sm group"
                 >
                   {/* Left Metadata */}
                   <div className="flex items-center gap-4 min-w-0">
-                    <div className="w-11 h-11 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 flex-shrink-0">
-                      <FileText className="w-5.5 h-5.5" />
+                    <div className="w-10 h-10 rounded-xl bg-[#cff4fc] border border-cyan-100 flex items-center justify-center text-[#0891b2] flex-shrink-0">
+                      <FileText className="w-5 h-5" />
                     </div>
 
                     <div className="min-w-0 truncate space-y-0.5">
-                      <h4 className="font-semibold text-sm text-white truncate font-sans">
+                      <h4 className="font-bold text-sm text-slate-800 truncate font-sans">
                         {doc.filename}
                       </h4>
                       <p className="text-xs text-slate-400 font-mono">
@@ -76,14 +76,14 @@ export const DocumentsTab = ({ documents = [], onUpload, onDelete, onRetry, isUp
                   <div className="flex items-center gap-4 flex-shrink-0 ml-4">
                     {/* Status Badge */}
                     {isProcessed && (
-                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-cyan-400">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600">
                         <Check className="w-4 h-4" />
                         <span>Uploaded</span>
                       </span>
                     )}
 
                     {isProcessing && (
-                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-400 animate-pulse">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-500 animate-pulse">
                         <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                         <span>Parsing...</span>
                       </span>
@@ -92,7 +92,7 @@ export const DocumentsTab = ({ documents = [], onUpload, onDelete, onRetry, isUp
                     {isFailed && (
                       <button
                         onClick={() => onRetry && onRetry(doc.id || doc._id)}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-400 hover:underline cursor-pointer"
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-500 hover:underline cursor-pointer"
                       >
                         <AlertCircle className="w-3.5 h-3.5" />
                         <span>Retry</span>
@@ -100,9 +100,9 @@ export const DocumentsTab = ({ documents = [], onUpload, onDelete, onRetry, isUp
                     )}
 
                     {/* Action Buttons */}
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 text-slate-400">
                       <button
-                        className="p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition"
+                        className="p-1.5 rounded-lg hover:text-slate-700 hover:bg-slate-100 transition"
                         title="Document Details"
                       >
                         <Info className="w-4 h-4" />
@@ -111,7 +111,7 @@ export const DocumentsTab = ({ documents = [], onUpload, onDelete, onRetry, isUp
                       <button
                         onClick={() => onDelete(doc.id || doc._id)}
                         disabled={isDeleting}
-                        className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"
+                        className="p-1.5 rounded-lg hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
                         title="Delete Document"
                       >
                         <Trash2 className="w-4 h-4" />

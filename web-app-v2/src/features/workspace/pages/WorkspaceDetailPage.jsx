@@ -35,7 +35,7 @@ export const WorkspaceDetailPage = () => {
   const { collaborators, addCollaborator, removeCollaborator, isAdding, isRemoving } = useCollaborators(workspaceId);
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-950 text-white font-sans -m-8">
+    <div className="flex flex-col min-h-screen bg-[#f4f5fa] text-slate-800 font-sans">
       {/* Workspace Header */}
       <WorkspaceHeader
         workspace={workspace}

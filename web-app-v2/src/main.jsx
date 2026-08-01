@@ -43,10 +43,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           {/* Protected Application Routes */}
           <Route element={<ProtectedRoute />}>
             <Route element={<MainLayout />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/workspaces" element={<WorkspaceListPage />} />
               <Route path="/workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/" element={<Navigate to="/workspaces" replace />} />
             </Route>
           </Route>
 

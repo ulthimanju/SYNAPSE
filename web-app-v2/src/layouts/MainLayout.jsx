@@ -1,85 +1,85 @@
 import React from 'react';
-import { Outlet, Link } from 'react-router-dom';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useSession } from '../features/auth/hooks/useSession';
 import { useLogout } from '../features/auth/hooks/useLogout';
-import { useUIStore } from '../store/uiStore';
-import { LogOut, Sun, Moon, LayoutDashboard, FolderGit2, Sparkles, UserCheck } from 'lucide-react';
+import { LayoutGrid, Folder, LogOut } from 'lucide-react';
 
 export const MainLayout = () => {
   const { user } = useSession();
-  const { mutate: logout, isPending: isLoggingOut } = useLogout();
-  const { theme, toggleTheme } = useUIStore();
+  const { mutate: logout } = useLogout();
+  const location = useLocation();
+
+  // Extract user initials
+  const initials = user?.email
+    ? user.email.slice(0, 2).toUpperCase()
+    : user?.full_name
+    ? user.full_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
+    : 'MU';
 
   return (
-    <div className="min-h-screen flex bg-slate-900 text-slate-100 font-sans">
-      {/* Sidebar */}
-      <aside className="w-64 border-r border-slate-800 bg-slate-950 flex flex-col justify-between p-6">
-        <div className="space-y-8">
-          {/* Logo Header */}
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blueprint-600 flex items-center justify-center shadow-lg shadow-blueprint-500/30">
-              <span className="font-mono font-bold text-white text-base">S</span>
-            </div>
-            <div>
-              <h1 className="font-bold text-base tracking-widest text-white font-sans">SYNAPSE</h1>
-              <p className="text-[10px] font-mono text-blueprint-400">v2.0 OS ENGINE</p>
-            </div>
-          </div>
+    <div className="min-h-screen flex bg-[#f4f5fa] text-slate-800 font-sans antialiased">
+      {/* Icon Rail Left Sidebar */}
+      <aside className="w-20 bg-[#1c3d98] flex flex-col items-center justify-between py-6 flex-shrink-0 shadow-xl z-20">
+        {/* Top Logo Badge */}
+        <div className="space-y-8 flex flex-col items-center">
+          <Link
+            to="/workspaces"
+            className="w-10 h-10 rounded-xl bg-blue-600 border border-blue-400/40 text-white font-mono font-bold text-lg flex items-center justify-center shadow-lg hover:scale-105 transition"
+            title="SYNAPSE v2"
+          >
+            S
+          </Link>
 
-          {/* Navigation */}
-          <nav className="space-y-2">
-            <Link
-              to="/dashboard"
-              className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-900 text-slate-300 hover:text-white font-medium text-sm border border-transparent hover:border-slate-800 transition"
-            >
-              <LayoutDashboard className="w-4 h-4 text-blueprint-400" />
-              <span>Dashboard</span>
-            </Link>
+          {/* Navigation Icons */}
+          <nav className="flex flex-col items-center gap-4">
             <Link
               to="/workspaces"
-              className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-900 text-blueprint-400 font-medium text-sm border border-slate-800"
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition cursor-pointer ${
+                location.pathname === '/workspaces'
+                  ? 'bg-white/10 text-white border border-white/20 shadow-inner'
+                  : 'text-blue-200/70 hover:text-white hover:bg-white/5'
+              }`}
+              title="All Workspaces Grid"
             >
-              <FolderGit2 className="w-4 h-4 text-blueprint-400" />
-              <span>Workspaces</span>
+              <LayoutGrid className="w-5 h-5" />
+            </Link>
+
+            <Link
+              to="/workspaces"
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition cursor-pointer ${
+                location.pathname.startsWith('/workspaces')
+                  ? 'bg-white/15 text-white border border-white/20 shadow-inner'
+                  : 'text-blue-200/70 hover:text-white hover:bg-white/5'
+              }`}
+              title="Active Workspaces"
+            >
+              <Folder className="w-5 h-5" />
             </Link>
           </nav>
         </div>
 
-        {/* User Footer & Logout */}
-        <div className="space-y-4 pt-6 border-t border-slate-800">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 overflow-hidden">
-              <div className="w-8 h-8 rounded-full bg-blueprint-900 border border-blueprint-500/40 flex items-center justify-center text-xs font-bold text-blueprint-200">
-                {user?.email ? user.email[0].toUpperCase() : 'U'}
-              </div>
-              <div className="truncate">
-                <p className="text-xs font-semibold text-white truncate">{user?.full_name || 'User'}</p>
-                <p className="text-[11px] text-slate-400 truncate">{user?.email}</p>
-              </div>
-            </div>
-            
-            <button
-              onClick={toggleTheme}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
-              title="Toggle Theme"
-            >
-              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
-          </div>
-
+        {/* Bottom User Avatar & Logout */}
+        <div className="flex flex-col items-center gap-4">
           <button
             onClick={() => logout()}
-            disabled={isLoggingOut}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition cursor-pointer"
+            className="p-2 rounded-xl text-blue-200/60 hover:text-rose-300 hover:bg-white/10 transition cursor-pointer"
+            title="Sign Out"
           >
-            <LogOut className="w-4 h-4" />
-            <span>{isLoggingOut ? 'Signing out...' : 'Sign Out'}</span>
+            <LogOut className="w-5 h-5" />
           </button>
+
+          {/* Cyan User Initials Avatar */}
+          <div
+            className="w-10 h-10 rounded-full bg-[#67e8f9] text-[#1c3d98] font-extrabold text-xs flex items-center justify-center shadow-md select-none"
+            title={user?.email || 'User Profile'}
+          >
+            {initials}
+          </div>
         </div>
       </aside>
 
-      {/* Main Content Viewport */}
-      <main className="flex-1 p-8 overflow-y-auto">
+      {/* Main Viewport Container */}
+      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-[#f4f5fa]">
         <Outlet />
       </main>
     </div>

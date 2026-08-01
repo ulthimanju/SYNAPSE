@@ -17,7 +17,7 @@ export const AuthCallbackPage = () => {
   useEffect(() => {
     if (!isLoading) {
       if (isAuthenticated) {
-        navigate('/dashboard', { replace: true });
+        navigate('/workspaces', { replace: true });
       } else {
         navigate('/login', { replace: true });
       }
