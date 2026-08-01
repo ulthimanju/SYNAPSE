@@ -9,6 +9,11 @@ export const AuthCallbackPage = () => {
 
   useEffect(() => {
     const verifyAndRedirect = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token');
+      if (token) {
+        localStorage.setItem('synapse_access_token', token);
+      }
       await refetchSession();
     };
     verifyAndRedirect();

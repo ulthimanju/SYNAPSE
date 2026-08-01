@@ -8,12 +8,13 @@ export const useLogout = () => {
   return useMutation({
     mutationFn: authService.logout,
     onSuccess: () => {
-      // Invalidate session cache
+      localStorage.removeItem('synapse_access_token');
       queryClient.setQueryData(authQueryKeys.session, null);
       queryClient.invalidateQueries({ queryKey: authQueryKeys.session });
       window.location.href = '/login';
     },
     onError: () => {
+      localStorage.removeItem('synapse_access_token');
       queryClient.setQueryData(authQueryKeys.session, null);
       window.location.href = '/login';
     },

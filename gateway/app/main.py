@@ -22,7 +22,12 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 # Enable CORS for web-app frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -52,16 +57,24 @@ async def proxy_request(target_url: str, request: Request) -> Response:
             follow_redirects=False,
         )
 
-        # Handle 302/301 OAuth redirects cleanly
+        # Handle 302/301 OAuth redirects cleanly while preserving Set-Cookie headers
         if resp.status_code in (301, 302, 303, 307, 308) and "location" in resp.headers:
-            return RedirectResponse(url=resp.headers["location"], status_code=resp.status_code)
+            redirect_resp = RedirectResponse(url=resp.headers["location"], status_code=resp.status_code)
+            for k, v in resp.headers.multi_items():
+                if k.lower() == "set-cookie":
+                    redirect_resp.headers.append("set-cookie", v)
+            return redirect_resp
 
-        return Response(
+        # Construct response forwarding multi-value headers (Set-Cookie)
+        response = Response(
             content=resp.content,
             status_code=resp.status_code,
-            headers=dict(resp.headers),
             media_type=resp.headers.get("content-type"),
         )
+        for k, v in resp.headers.multi_items():
+            if k.lower() not in ("content-length", "content-type"):
+                response.headers.append(k, v)
+        return response
     except Exception as exc:
         logger.error(f"Gateway proxy error to {target_url}: {exc}")
         return JSONResponse(
