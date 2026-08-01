@@ -10,12 +10,15 @@ export const useLogout = () => {
     onSuccess: () => {
       localStorage.removeItem('synapse_access_token');
       queryClient.setQueryData(authQueryKeys.session, null);
-      queryClient.invalidateQueries({ queryKey: authQueryKeys.session });
+      queryClient.removeQueries();
+      queryClient.clear();
       window.location.href = '/login';
     },
     onError: () => {
       localStorage.removeItem('synapse_access_token');
       queryClient.setQueryData(authQueryKeys.session, null);
+      queryClient.removeQueries();
+      queryClient.clear();
       window.location.href = '/login';
     },
   });

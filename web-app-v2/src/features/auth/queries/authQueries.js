@@ -8,7 +8,7 @@ export const authQueryKeys = {
 export const sessionQueryOptions = {
   queryKey: authQueryKeys.session,
   queryFn: sessionService.fetchSession,
-  staleTime: 5 * 60 * 1000, // 5 minutes
+  staleTime: 0, // Always verify active session
   retry: 1, // 1 retry before redirecting to login
   refetchOnWindowFocus: true,
 };

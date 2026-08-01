@@ -41,8 +41,8 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
 
 def clear_auth_cookies(response: Response):
     """Clears HttpOnly cookies upon logout or session invalidation."""
-    response.delete_cookie(key="access_token", path="/", samesite="lax")
-    response.delete_cookie(key="refresh_token", path="/", samesite="lax")
+    response.delete_cookie(key="access_token", path="/", samesite="lax", httponly=True, secure=IS_PROD)
+    response.delete_cookie(key="refresh_token", path="/", samesite="lax", httponly=True, secure=IS_PROD)
 
 @router.get("/google/login", status_code=302)
 async def google_login(
