@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from shared.auth import create_access_token
-from shared.cache.redis_client import redis_cache_manager
+from shared.cache.redis_client import redis_cache_manager, CacheKeys
 from shared.exceptions import NotFoundException, BadRequestException
 from ..repositories.user_repository import UserRepository
 from ..repositories.role_repository import RoleRepository
