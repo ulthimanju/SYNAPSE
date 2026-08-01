@@ -1,10 +1,11 @@
 import os
+from typing import Optional
 from urllib.parse import quote
-from fastapi import APIRouter, Depends, Query
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from shared.schemas import APIResponse
-from shared.auth import get_current_user, AuthenticatedUser
+from shared.auth import get_current_user, get_optional_user, AuthenticatedUser
 from ..db import get_db
 from ..services.auth_service import AuthService
 from ..schemas.user import UserRead
@@ -14,6 +15,34 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 DEFAULT_GOOGLE_REDIRECT_URI = os.getenv(
     "GOOGLE_REDIRECT_URI", "http://localhost:8000/api/v1/auth/google/callback"
 )
+
+IS_PROD = os.getenv("ENVIRONMENT", "development").lower() == "production"
+
+def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
+    """Sets HttpOnly Secure cookies for access_token (15m) and refresh_token (30d)."""
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=IS_PROD,
+        samesite="lax",
+        max_age=900,
+        path="/",
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=IS_PROD,
+        samesite="lax",
+        max_age=30 * 86400,
+        path="/",
+    )
+
+def clear_auth_cookies(response: Response):
+    """Clears HttpOnly cookies upon logout or session invalidation."""
+    response.delete_cookie(key="access_token", path="/", samesite="lax")
+    response.delete_cookie(key="refresh_token", path="/", samesite="lax")
 
 @router.get("/google/login", status_code=302)
 async def google_login(
@@ -31,19 +60,96 @@ async def google_callback(
     redirect_uri: str = Query(default=DEFAULT_GOOGLE_REDIRECT_URI, description="OAuth callback redirect URI"),
     session: AsyncSession = Depends(get_db)
 ) -> RedirectResponse:
-    """Processes Google OAuth callback, provisions user account, and redirects to frontend with JWT token & profile."""
+    """Processes Google OAuth callback, sets HttpOnly cookies, and redirects to frontend."""
     auth_service = AuthService(session)
     token_response = await auth_service.handle_google_callback(code=code, redirect_uri=redirect_uri)
-    
+
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-    access_token = token_response.access_token
     user_info = token_response.user
 
     email_q = quote(user_info.email or "")
     name_q = quote(user_info.full_name or "")
 
-    redirect_to = f"{frontend_url}/auth/callback?token={access_token}&email={email_q}&name={name_q}"
-    return RedirectResponse(url=redirect_to, status_code=302)
+    redirect_to = f"{frontend_url}/auth/callback?token={token_response.access_token}&email={email_q}&name={name_q}"
+    resp = RedirectResponse(url=redirect_to, status_code=302)
+    set_auth_cookies(resp, token_response.access_token, token_response.refresh_token)
+    return resp
+
+@router.get("/session", response_model=APIResponse[dict])
+async def get_session(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+) -> APIResponse[dict]:
+    """Returns active session payload with user profile, roles, and permissions."""
+    auth_service = AuthService(session)
+    user_profile = await auth_service.get_current_user_profile(user_id_str=current_user.user_id)
+    return APIResponse(
+        message="Active session verified",
+        data={
+            "user": user_profile,
+            "roles": current_user.roles,
+            "authenticated": True,
+        }
+    )
+
+@router.post("/refresh")
+async def refresh_session(
+    request: Request,
+    response: Response,
+    session: AsyncSession = Depends(get_db)
+) -> APIResponse[dict]:
+    """Rotates refresh token and issues fresh HttpOnly access & refresh cookies."""
+    refresh_token = request.cookies.get("refresh_token")
+    if not refresh_token:
+        # Fallback to JSON body if passed
+        try:
+            body = await request.json()
+            refresh_token = body.get("refresh_token")
+        except Exception:
+            pass
+
+    if not refresh_token:
+        clear_auth_cookies(response)
+        return JSONResponse(status_code=401, content={"message": "Missing refresh token"})
+
+    auth_service = AuthService(session)
+    token_resp = await auth_service.rotate_refresh_token(old_refresh_token=refresh_token)
+
+    res = JSONResponse(
+        status_code=200,
+        content={"message": "Token refreshed successfully", "data": {"user": token_resp.user.model_dump(mode="json")}}
+    )
+    set_auth_cookies(res, token_resp.access_token, token_resp.refresh_token)
+    return res
+
+@router.post("/logout")
+async def logout(
+    request: Request,
+    response: Response,
+    current_user: Optional[AuthenticatedUser] = Depends(get_optional_user),
+    session: AsyncSession = Depends(get_db)
+) -> APIResponse[dict]:
+    """Clears HttpOnly auth cookies and revokes active session in Redis."""
+    if current_user:
+        auth_service = AuthService(session)
+        await auth_service.logout_user(user_id=current_user.user_id)
+
+    res = JSONResponse(status_code=200, content={"message": "Logged out successfully"})
+    clear_auth_cookies(res)
+    return res
+
+@router.get("/status")
+async def auth_status(
+    current_user: Optional[AuthenticatedUser] = Depends(get_optional_user)
+) -> APIResponse[dict]:
+    """Lightweight authentication status check."""
+    return APIResponse(
+        message="Auth status check completed",
+        data={
+            "authenticated": current_user is not None,
+            "user_id": current_user.user_id if current_user else None,
+        }
+    )
 
 @router.get("/me", response_model=APIResponse[UserRead])
 async def get_me(

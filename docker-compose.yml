@@ -241,14 +241,14 @@ services:
   # Web Application (Vite Dev Server with HMR - Port 3000)
   web-app:
     build:
-      context: ./web-app
+      context: ./web-app-v2
       dockerfile: Dockerfile
     container_name: synapse-web-app
     restart: unless-stopped
     ports:
       - "3000:3000"
     volumes:
-      - ./web-app:/app
+      - ./web-app-v2:/app
       - /app/node_modules
     environment:
       - WATCHPACK_POLLING=true

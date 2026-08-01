@@ -55,7 +55,8 @@ class AuthService:
         if google_access_token:
             await redis_cache_manager.set_cache(f"gdrive_access_token:{user.id}", google_access_token, ttl_seconds=3500)
 
-        # 3. Issue Synapse JWT Access & Refresh Tokens
+        # 3. Issue Synapse Short-lived Access Token (15m) & Long-lived Refresh Token (30 days)
+        from datetime import timedelta
         role_names = [r.name for r in user.roles]
         token_data = {
             "sub": str(user.id),
@@ -64,8 +65,17 @@ class AuthService:
             "google_token": google_access_token,
             "google_refresh_token": google_refresh_token,
         }
-        access_token = create_access_token(data=token_data)
-        refresh_token = create_access_token(data={"sub": str(user.id), "type": "refresh"})
+        access_token = create_access_token(data=token_data, expires_delta=timedelta(minutes=15))
+        refresh_token = create_access_token(data={"sub": str(user.id), "type": "refresh"}, expires_delta=timedelta(days=30))
+
+        # Store refresh token & session metadata in Redis for Rotation & Session Invalidation
+        await redis_cache_manager.set_cache(f"user_refresh:{user.id}", refresh_token, ttl_seconds=30*86400)
+        await redis_cache_manager.set_json_cache(f"user_session:{user.id}", {
+            "user_id": str(user.id),
+            "email": user.email,
+            "roles": role_names,
+            "active": True
+        }, ttl_seconds=30*86400)
 
         user_read = UserRead.model_validate(user)
 
@@ -80,13 +90,67 @@ class AuthService:
             access_token=access_token,
             refresh_token=refresh_token,
             token_type="Bearer",
-            expires_in=3600,
+            expires_in=900,
             user=user_read
         )
 
+    async def rotate_refresh_token(self, old_refresh_token: str) -> TokenResponse:
+        """Rotates refresh token and issues fresh short-lived access token + new refresh token."""
+        from shared.auth import decode_access_token
+        try:
+            payload = decode_access_token(old_refresh_token)
+            user_id = payload.get("sub")
+            if not user_id or payload.get("type") != "refresh":
+                raise BadRequestException("Invalid refresh token")
+        except Exception:
+            raise BadRequestException("Invalid or expired refresh token")
+
+        # Verify stored refresh token in Redis
+        cached_rf = await redis_cache_manager.get_cache(f"user_refresh:{user_id}")
+        if not cached_rf or cached_rf != old_refresh_token:
+            # Token reuse or invalidation detected - revoke session
+            await redis_cache_manager.delete_cache(f"user_refresh:{user_id}")
+            await redis_cache_manager.delete_cache(f"user_session:{user_id}")
+            raise BadRequestException("Refresh token expired or revoked")
+
+        # Fetch user
+        uid = uuid.UUID(user_id)
+        user = await self.user_repo.get_user_by_id(uid)
+        if not user or not user.is_active:
+            raise UnauthorizedException("User account disabled or not found")
+
+        # Generate fresh token pair (Rotation)
+        from datetime import timedelta
+        role_names = [r.name for r in user.roles]
+        token_data = {
+            "sub": str(user.id),
+            "email": user.email,
+            "roles": role_names,
+        }
+        new_access_token = create_access_token(data=token_data, expires_delta=timedelta(minutes=15))
+        new_refresh_token = create_access_token(data={"sub": str(user.id), "type": "refresh"}, expires_delta=timedelta(days=30))
+
+        # Rotate token in Redis
+        await redis_cache_manager.set_cache(f"user_refresh:{user.id}", new_refresh_token, ttl_seconds=30*86400)
+
+        user_read = UserRead.model_validate(user)
+        return TokenResponse(
+            access_token=new_access_token,
+            refresh_token=new_refresh_token,
+            token_type="Bearer",
+            expires_in=900,
+            user=user_read
+        )
+
+    async def logout_user(self, user_id: str):
+        """Revokes user session and invalidates refresh token & profile caches in Redis."""
+        await redis_cache_manager.delete_cache(f"user_refresh:{user_id}")
+        await redis_cache_manager.delete_cache(f"user_session:{user_id}")
+        await redis_cache_manager.delete_cache(CacheKeys.user_profile(user_id))
+        logger.info(f"Revoked authentication session for user '{user_id}'")
+
     async def get_current_user_profile(self, user_id_str: str) -> UserRead:
         """Returns UserRead profile for current authenticated user ID, leveraging Redis caching."""
-        # 1. Check Redis cache first (sub-millisecond hit!)
         try:
             cached_data = await redis_cache_manager.get_json_cache(CacheKeys.user_profile(user_id_str))
             if cached_data:
@@ -95,7 +159,6 @@ class AuthService:
         except Exception as exc:
             logger.warning(f"Redis profile cache lookup notice: {exc}")
 
-        # 2. Database lookup on cache miss
         try:
             uid = uuid.UUID(user_id_str)
             user = await self.user_repo.get_user_by_id(uid)
@@ -107,7 +170,6 @@ class AuthService:
 
         user_read = UserRead.model_validate(user)
 
-        # 3. Cache user profile in Redis for 15 minutes (900 seconds)
         try:
             await redis_cache_manager.set_json_cache(CacheKeys.user_profile(user_id_str), user_read.model_dump(mode="json"), ttl_seconds=900)
         except Exception as exc:

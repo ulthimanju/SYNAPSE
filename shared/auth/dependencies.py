@@ -8,21 +8,31 @@ from .jwt import verify_access_token
 security = HTTPBearer(auto_error=False)
 
 async def get_current_user(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ) -> AuthenticatedUser:
-    """FastAPI Dependency: Ensures request is authenticated and returns AuthenticatedUser."""
-    if not credentials or not credentials.credentials:
-        raise UnauthorizedException("Missing or invalid Authorization header")
-    return verify_access_token(credentials.credentials)
+    """FastAPI Dependency: Extracts JWT token from HttpOnly Cookie ('access_token') or Bearer Header."""
+    token = request.cookies.get("access_token")
+    if not token and credentials and credentials.credentials:
+        token = credentials.credentials
+
+    if not token:
+        raise UnauthorizedException("Missing or invalid authentication token")
+    return verify_access_token(token)
 
 async def get_optional_user(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ) -> Optional[AuthenticatedUser]:
     """FastAPI Dependency: Returns AuthenticatedUser if valid token present, otherwise None."""
-    if not credentials or not credentials.credentials:
+    token = request.cookies.get("access_token")
+    if not token and credentials and credentials.credentials:
+        token = credentials.credentials
+
+    if not token:
         return None
     try:
-        return verify_access_token(credentials.credentials)
+        return verify_access_token(token)
     except Exception:
         return None
 
