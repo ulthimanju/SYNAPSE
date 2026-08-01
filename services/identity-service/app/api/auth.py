@@ -41,8 +41,8 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
 
 def clear_auth_cookies(response: Response):
     """Clears HttpOnly cookies upon logout or session invalidation."""
-    response.delete_cookie(key="access_token", path="/", samesite="lax", httponly=True, secure=IS_PROD)
-    response.delete_cookie(key="refresh_token", path="/", samesite="lax", httponly=True, secure=IS_PROD)
+    response.set_cookie(key="access_token", value="", max_age=0, expires=0, path="/", samesite="lax", httponly=True, secure=IS_PROD)
+    response.set_cookie(key="refresh_token", value="", max_age=0, expires=0, path="/", samesite="lax", httponly=True, secure=IS_PROD)
 
 @router.get("/google/login", status_code=302)
 async def google_login(
@@ -113,14 +113,18 @@ async def refresh_session(
         return JSONResponse(status_code=401, content={"message": "Missing refresh token"})
 
     auth_service = AuthService(session)
-    token_resp = await auth_service.rotate_refresh_token(old_refresh_token=refresh_token)
-
-    res = JSONResponse(
-        status_code=200,
-        content={"message": "Token refreshed successfully", "data": {"user": token_resp.user.model_dump(mode="json")}}
-    )
-    set_auth_cookies(res, token_resp.access_token, token_resp.refresh_token)
-    return res
+    try:
+        token_resp = await auth_service.rotate_refresh_token(old_refresh_token=refresh_token)
+        res = JSONResponse(
+            status_code=200,
+            content={"message": "Token refreshed successfully", "data": {"user": token_resp.user.model_dump(mode="json")}}
+        )
+        set_auth_cookies(res, token_resp.access_token, token_resp.refresh_token)
+        return res
+    except Exception as exc:
+        res = JSONResponse(status_code=401, content={"message": str(exc)})
+        clear_auth_cookies(res)
+        return res
 
 @router.post("/logout")
 async def logout(
@@ -130,9 +134,22 @@ async def logout(
     session: AsyncSession = Depends(get_db)
 ) -> APIResponse[dict]:
     """Clears HttpOnly auth cookies and revokes active session in Redis."""
+    auth_service = AuthService(session)
+    
     if current_user:
-        auth_service = AuthService(session)
         await auth_service.logout_user(user_id=current_user.user_id)
+    else:
+        # Extract user_id from refresh token if present
+        ref_token = request.cookies.get("refresh_token")
+        if ref_token:
+            try:
+                from shared.auth import decode_access_token
+                payload = decode_access_token(ref_token)
+                uid = payload.get("sub")
+                if uid:
+                    await auth_service.logout_user(user_id=uid)
+            except Exception:
+                pass
 
     res = JSONResponse(status_code=200, content={"message": "Logged out successfully"})
     clear_auth_cookies(res)

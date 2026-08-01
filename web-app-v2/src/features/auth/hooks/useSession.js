@@ -4,11 +4,13 @@ import { sessionQueryOptions } from '../queries/authQueries';
 export const useSession = () => {
   const { data, isLoading, isError, error, refetch } = useQuery(sessionQueryOptions);
 
+  const isAuthenticated = !isError && !!data?.authenticated && !!data?.user;
+
   return {
     session: data,
-    user: data?.user || null,
-    roles: data?.roles || [],
-    isAuthenticated: !!data?.authenticated && !!data?.user,
+    user: isAuthenticated ? data.user : null,
+    roles: isAuthenticated ? (data.roles || []) : [],
+    isAuthenticated,
     isLoading,
     isError,
     error,

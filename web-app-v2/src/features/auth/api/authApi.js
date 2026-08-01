@@ -8,8 +8,12 @@ export const authApi = {
 
   // Verifies current HttpOnly Cookie session
   getSession: async () => {
-    const res = await axiosInstance.get('/auth/session');
-    return res?.data?.data || res?.data;
+    try {
+      const res = await axiosInstance.get('/auth/session');
+      return res?.data?.data || res?.data || { authenticated: false, user: null };
+    } catch (err) {
+      return { authenticated: false, user: null, roles: [] };
+    }
   },
 
   // Performs refresh token rotation
