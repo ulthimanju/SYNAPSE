@@ -12,17 +12,19 @@ export const axiosInstance = axios.create({
   },
 });
 
-// Request Interceptor: Attaches fallback Authorization Bearer header if token exists in localStorage
-axiosInstance.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('synapse_access_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
     }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+  });
+  failedQueue = [];
+};
 
 // Response Interceptor: Handles 401 Unauthorized via Silent Refresh
 axiosInstance.interceptors.response.use(

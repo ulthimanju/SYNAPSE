@@ -65,12 +65,7 @@ async def google_callback(
     token_response = await auth_service.handle_google_callback(code=code, redirect_uri=redirect_uri)
 
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-    user_info = token_response.user
-
-    email_q = quote(user_info.email or "")
-    name_q = quote(user_info.full_name or "")
-
-    redirect_to = f"{frontend_url}/auth/callback?token={token_response.access_token}&email={email_q}&name={name_q}"
+    redirect_to = f"{frontend_url}/auth/callback"
     resp = RedirectResponse(url=redirect_to, status_code=302)
     set_auth_cookies(resp, token_response.access_token, token_response.refresh_token)
     return resp
