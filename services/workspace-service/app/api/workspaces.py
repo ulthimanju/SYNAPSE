@@ -146,7 +146,7 @@ async def workspace_chat_turn(
     if not membership:
         raise ForbiddenException("You are not authorized to chat in this workspace")
 
-    query = payload.get("query", "")
+    query = payload.get("query") or payload.get("message", "")
     from shared.config.settings import settings
     rag_service_url = f"{settings.rag_service_url}/chat"
 

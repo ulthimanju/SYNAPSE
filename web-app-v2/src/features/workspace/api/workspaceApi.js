@@ -187,7 +187,7 @@ export const workspaceApi = {
 
   sendChatMessage: async (workspaceId, message) => {
     if (!workspaceId) throw new Error('workspaceId is required');
-    const res = await axiosInstance.post(`/workspaces/${workspaceId}/chat`, { message });
+    const res = await axiosInstance.post(`/workspaces/${workspaceId}/chat`, { query: message, message });
     return res?.data?.data || res?.data;
   },
 
