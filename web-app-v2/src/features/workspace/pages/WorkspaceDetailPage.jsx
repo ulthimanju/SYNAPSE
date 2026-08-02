@@ -28,12 +28,7 @@ export const WorkspaceDetailPage = () => {
     setActiveTab,
   } = useWorkspace();
 
-  // 2. If NO workspace query parameter is present in URL (/workspaces), render Workspace Grid List!
-  if (!workspaceId) {
-    return <WorkspaceListPage />;
-  }
-
-  // 3. Workspace-Scoped UI State (Resets on workspace change)
+  // 2. Workspace-Scoped UI State (Declared unconditionally at top level)
   const [selectedUnitId, setSelectedUnitId] = useState(null);
   const [isSwitchModalOpen, setIsSwitchModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -45,29 +40,41 @@ export const WorkspaceDetailPage = () => {
     setIsCreateModalOpen(false);
   }, [workspaceId]);
 
-  // 4. Tab-Level Lazy Loading — Pass boolean isTabActive to fetch ONLY when tab is open!
+  // 3. Declare ALL Custom Hooks unconditionally at top level to enforce React Rules of Hooks
   const { createWorkspace, isCreating } = useWorkspaces();
+
+  const isDocTabActive = !!workspaceId && activeTab === 'documents';
+  const isSummaryTabActive = !!workspaceId && activeTab === 'summary';
+  const isLpTabActive = !!workspaceId && activeTab === 'learning-path';
+  const isChatTabActive = !!workspaceId && activeTab === 'chat';
+  const isCollabTabActive = !!workspaceId && (activeTab === 'collaborators' || activeTab === 'documents');
+
   const { documents, uploadDocument, deleteDocument, retryDocument, isUploading, isDeleting } = useDocuments(
     workspaceId,
-    activeTab === 'documents'
+    isDocTabActive
   );
   const { summary, isLoading: isSummaryLoading, generateSummary, isGenerating: isGeneratingSummary } = useSummary(
     workspaceId,
-    activeTab === 'summary'
+    isSummaryTabActive
   );
   const { learningPath, unitContent, isUnitLoading, generateLearningPath, isGenerating: isGeneratingPath } = useLearningPath(
     workspaceId,
     selectedUnitId,
-    activeTab === 'learning-path'
+    isLpTabActive
   );
   const { messages, sendMessage, isSending, clearHistory } = useRagChat(
     workspaceId,
-    activeTab === 'chat'
+    isChatTabActive
   );
   const { collaborators, addCollaborator, removeCollaborator, isAdding, isRemoving } = useCollaborators(
     workspaceId,
-    activeTab === 'collaborators' || activeTab === 'documents'
+    isCollabTabActive
   );
+
+  // 4. Conditional Return ONLY AFTER ALL HOOKS ARE DECLARED
+  if (!workspaceId) {
+    return <WorkspaceListPage />;
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-[#f4f5fa] text-slate-800 font-sans">
