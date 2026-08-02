@@ -120,12 +120,16 @@ class AuthService:
             raise UnauthorizedException("User account disabled or not found")
 
         # Generate fresh token pair (Rotation)
-        from datetime import timedelta
-        role_names = [r.name for r in user.roles]
+        # Retrieve Google OAuth tokens from Redis cache
+        g_access = await redis_cache_manager.get_cache(f"gdrive_access_token:{user.id}")
+        g_refresh = await redis_cache_manager.get_cache(f"gdrive_refresh_token:{user.id}")
+
         token_data = {
             "sub": str(user.id),
             "email": user.email,
             "roles": role_names,
+            "google_token": g_access,
+            "google_refresh_token": g_refresh,
         }
         new_access_token = create_access_token(data=token_data, expires_delta=timedelta(minutes=15))
         new_refresh_token = create_access_token(data={"sub": str(user.id), "type": "refresh"}, expires_delta=timedelta(days=30))

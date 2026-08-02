@@ -88,43 +88,40 @@ class GoogleDriveStorageService:
         content_type: str = "application/octet-stream",
         auth_token: Optional[str] = None,
     ) -> str:
-        """Uploads file to Google Drive if OAuth tokens present; otherwise uses MinIO S3 Object Storage."""
+        """Uploads file to Google Drive. Auto-refreshes OAuth token and retries if access token is expired."""
         google_token, refresh_token, user_id = await self._extract_google_tokens(auth_token)
 
-        # 1. Try Google Drive if OAuth tokens present
-        if google_token or refresh_token:
-            try:
-                is_401 = False
-                if google_token:
-                    folder_id, is_401 = await self.get_or_create_workspace_folder(workspace_id, google_token)
-                    if not is_401 and folder_id:
-                        upload_res = await self._perform_gdrive_upload(folder_id, filename, file_bytes, content_type, google_token)
-                        if upload_res:
-                            return upload_res
-                        is_401 = True
+        # 1. If access token is absent but refresh token exists, auto-refresh Google access token first
+        if not google_token and refresh_token:
+            logger.info("🔐 Google access token absent. Attempting auto-refresh with Google refresh token...")
+            google_token = await self.refresh_google_access_token(user_id=user_id, refresh_token=refresh_token)
 
-                if (is_401 or not google_token) and refresh_token:
-                    fresh_token = await self.refresh_google_access_token(user_id=user_id, refresh_token=refresh_token)
-                    if fresh_token:
-                        folder_id, is_401 = await self.get_or_create_workspace_folder(workspace_id, fresh_token)
-                        if not is_401 and folder_id:
-                            upload_res = await self._perform_gdrive_upload(folder_id, filename, file_bytes, content_type, fresh_token)
-                            if upload_res:
-                                return upload_res
-            except Exception as exc:
-                logger.warning(f"Google Drive upload notice ({exc}). Using MinIO Object Storage fallback...")
+        if not google_token and not refresh_token:
+            raise UnauthorizedException("Google Drive OAuth token missing. Please sign in with Google to grant Drive access.")
 
-        # 2. Universal MinIO S3 Object Storage Fallback (Guarantees file upload NEVER fails)
-        logger.info(f"Using MinIO Object Storage for document '{filename}' in workspace '{workspace_id}'")
-        from .minio_client import MinIOStorageService
-        minio_service = MinIOStorageService()
-        storage_key = minio_service.generate_storage_key(workspace_id, filename)
-        return minio_service.upload_file(
-            storage_key=storage_key,
-            data=io.BytesIO(file_bytes),
-            length=len(file_bytes),
-            content_type=content_type
-        )
+        # Attempt 1: Upload with current google_token
+        is_401 = False
+        if google_token:
+            folder_id, is_401 = await self.get_or_create_workspace_folder(workspace_id, google_token)
+            if not is_401 and folder_id:
+                upload_res = await self._perform_gdrive_upload(folder_id, filename, file_bytes, content_type, google_token)
+                if upload_res:
+                    return upload_res
+                is_401 = True
+
+        # Attempt 2: Auto-Refresh OAuth Token & Retry if 401
+        if is_401 and refresh_token:
+            logger.info("🔐 Google OAuth access token expired (401). Triggering automatic token refresh...")
+            fresh_token = await self.refresh_google_access_token(user_id=user_id, refresh_token=refresh_token)
+            if fresh_token:
+                folder_id, is_401 = await self.get_or_create_workspace_folder(workspace_id, fresh_token)
+                if not is_401 and folder_id:
+                    upload_res = await self._perform_gdrive_upload(folder_id, filename, file_bytes, content_type, fresh_token)
+                    if upload_res:
+                        logger.info("⚡ [RETRY SUCCESS] Google Drive upload succeeded after OAuth token refresh!")
+                        return upload_res
+
+        raise ServiceUnavailableException("Google Drive upload failed: OAuth access token expired and refresh attempt failed. Please sign in with Google again.")
 
     async def _perform_gdrive_upload(self, folder_id: str, filename: str, file_bytes: bytes, content_type: str, access_token: str) -> Optional[str]:
         """Helper executing multipart POST upload to Google Drive."""
