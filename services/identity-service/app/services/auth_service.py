@@ -95,8 +95,11 @@ class AuthService:
         )
 
     async def rotate_refresh_token(self, old_refresh_token: str) -> TokenResponse:
-        """Rotates refresh token and issues fresh short-lived access token + new refresh token."""
+        """Rotates refresh token and issues fresh short-lived access token + new refresh token.
+        Also proactively refreshes the Google Drive access token if it's missing or expired.
+        """
         from shared.auth import decode_access_token
+        from datetime import timedelta
         try:
             payload = decode_access_token(old_refresh_token)
             user_id = payload.get("sub")
@@ -119,10 +122,25 @@ class AuthService:
         if not user or not user.is_active:
             raise UnauthorizedException("User account disabled or not found")
 
-        # Generate fresh token pair (Rotation)
+        role_names = [r.name for r in user.roles]
+
         # Retrieve Google OAuth tokens from Redis cache
         g_access = await redis_cache_manager.get_cache(f"gdrive_access_token:{user.id}")
         g_refresh = await redis_cache_manager.get_cache(f"gdrive_refresh_token:{user.id}")
+
+        # Proactively refresh Google access token if it's absent but refresh token exists
+        # This ensures every rotated Synapse JWT carries a fresh, valid Google Drive token.
+        if not g_access and g_refresh:
+            try:
+                refreshed = await self._refresh_google_token(g_refresh)
+                if refreshed:
+                    g_access = refreshed
+                    await redis_cache_manager.set_cache(
+                        f"gdrive_access_token:{user.id}", g_access, ttl_seconds=3500
+                    )
+                    logger.info(f"🔄 [PROACTIVE GOOGLE REFRESH] Refreshed Google access token for user {user.id} during session rotation")
+            except Exception as exc:
+                logger.warning(f"Proactive Google token refresh notice: {exc}")
 
         token_data = {
             "sub": str(user.id),
@@ -145,6 +163,45 @@ class AuthService:
             expires_in=900,
             user=user_read
         )
+
+    async def _refresh_google_token(self, refresh_token: str) -> str | None:
+        """Calls Google OAuth token endpoint to exchange refresh_token for a fresh access_token."""
+        import httpx
+        client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+        client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
+        if not client_id or not client_secret:
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.post(
+                    "https://oauth2.googleapis.com/token",
+                    data={
+                        "client_id": client_id,
+                        "client_secret": client_secret,
+                        "refresh_token": refresh_token,
+                        "grant_type": "refresh_token",
+                    }
+                )
+                if res.status_code == 200:
+                    return res.json().get("access_token")
+                logger.warning(f"Google token refresh attempt returned {res.status_code}: {res.text[:100]}")
+        except Exception as exc:
+            logger.warning(f"Google token HTTP refresh notice: {exc}")
+        return None
+
+    async def refresh_google_token_for_user(self, user_id: str) -> str | None:
+        """On-demand Google Drive access token refresh for a given user ID.
+        Fetches the stored Google refresh token from Redis and exchanges it for a fresh access token.
+        """
+        g_refresh = await redis_cache_manager.get_cache(f"gdrive_refresh_token:{user_id}")
+        if not g_refresh:
+            logger.warning(f"No Google refresh token found in Redis for user {user_id}")
+            return None
+        fresh = await self._refresh_google_token(g_refresh)
+        if fresh:
+            await redis_cache_manager.set_cache(f"gdrive_access_token:{user_id}", fresh, ttl_seconds=3500)
+            logger.info(f"🔄 [ON-DEMAND GOOGLE REFRESH] Refreshed Google access token for user {user_id}")
+        return fresh
 
     async def logout_user(self, user_id: str):
         """Revokes user session and invalidates refresh token & profile caches in Redis."""

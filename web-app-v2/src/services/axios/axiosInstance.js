@@ -27,12 +27,13 @@ const processQueue = (error, token = null) => {
 };
 
 // Response Interceptor: Handles 401 Unauthorized via Silent Refresh
+// and 503 Google Drive token expiry via Silent Google Token Refresh
 axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    // Avoid infinite loop if refresh endpoint itself returns 401
+    // ── 401: Silent Synapse JWT Refresh ─────────────────────────────────────
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&
@@ -51,19 +52,42 @@ axiosInstance.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Attempt silent session refresh via HttpOnly refresh_token cookie
         await axiosInstance.post('/auth/refresh');
         processQueue(null);
         return axiosInstance(originalRequest);
       } catch (refreshErr) {
         processQueue(refreshErr, null);
-        // Clear query cache / session if refresh fails
         if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
           window.location.href = '/login?session_expired=1';
         }
         return Promise.reject(refreshErr);
       } finally {
         isRefreshing = false;
+      }
+    }
+
+    // ── 503: Silent Google Drive Token Refresh & Retry ──────────────────────
+    // Triggered when document upload/download fails due to expired Google OAuth token.
+    if (
+      error.response?.status === 503 &&
+      !originalRequest._googleRetry
+    ) {
+      const errorCode = error.response?.data?.error?.code;
+      const errorMsg = error.response?.data?.error?.message || '';
+      const isGoogleAuthError =
+        errorCode === 'SERVICE_UNAVAILABLE' &&
+        (errorMsg.includes('Google Drive') || errorMsg.includes('OAuth'));
+
+      if (isGoogleAuthError) {
+        originalRequest._googleRetry = true;
+        try {
+          await axiosInstance.post('/auth/google/refresh-token');
+          // Retry original request after silent Google token refresh
+          return axiosInstance(originalRequest);
+        } catch (googleRefreshErr) {
+          // Token refresh failed — user must re-authenticate with Google
+          return Promise.reject(googleRefreshErr);
+        }
       }
     }
 

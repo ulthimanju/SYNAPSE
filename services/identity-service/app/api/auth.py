@@ -150,6 +150,28 @@ async def logout(
     clear_auth_cookies(res)
     return res
 
+@router.post("/google/refresh-token")
+async def refresh_google_token(
+    request: Request,
+    response: Response,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> APIResponse[dict]:
+    """Proactively refreshes Google Drive access token using the stored refresh token.
+    Call this when a Google Drive operation returns 401/403 to avoid forcing full re-login.
+    """
+    auth_service = AuthService(session)
+    new_token = await auth_service.refresh_google_token_for_user(user_id=current_user.user_id)
+    if new_token:
+        return APIResponse(
+            message="Google Drive token refreshed successfully.",
+            data={"google_token_refreshed": True}
+        )
+    return APIResponse(
+        message="Google refresh token not available. Please sign in with Google again.",
+        data={"google_token_refreshed": False}
+    )
+
 @router.get("/status")
 async def auth_status(
     current_user: Optional[AuthenticatedUser] = Depends(get_optional_user)
