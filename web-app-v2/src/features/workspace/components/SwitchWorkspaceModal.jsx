@@ -2,8 +2,10 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Folder, Plus, Check } from 'lucide-react';
 
+import { useWorkspace } from '../context/WorkspaceContext';
+
 export const SwitchWorkspaceModal = ({ isOpen, onClose, workspaces = [], currentWorkspaceId, onOpenCreate }) => {
-  const navigate = useNavigate();
+  const { switchWorkspace } = useWorkspace();
 
   if (!isOpen) return null;
 
@@ -33,7 +35,8 @@ export const SwitchWorkspaceModal = ({ isOpen, onClose, workspaces = [], current
               <button
                 key={ws.id}
                 onClick={() => {
-                  navigate(`/workspaces/${ws.id}`);
+                  const wsId = ws.id || ws._id || ws.workspace_id;
+                  switchWorkspace(wsId);
                   onClose();
                 }}
                 className={`w-full text-left p-3.5 rounded-2xl border transition cursor-pointer flex items-center justify-between ${

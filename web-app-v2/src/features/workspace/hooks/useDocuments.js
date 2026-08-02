@@ -16,7 +16,7 @@ export const useDocuments = (workspaceId) => {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (documentId) => workspaceApi.deleteDocument(documentId),
+    mutationFn: (documentId) => workspaceApi.deleteDocument(workspaceId, documentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.documents(workspaceId) });
       queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.detail(workspaceId) });

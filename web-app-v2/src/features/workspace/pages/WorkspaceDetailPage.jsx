@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useWorkspaceDetail } from '../hooks/useWorkspaceDetail';
+import React, { useState, useEffect } from 'react';
+import { useWorkspace } from '../context/WorkspaceContext';
 import { useWorkspaces } from '../hooks/useWorkspaces';
 import { useDocuments } from '../hooks/useDocuments';
 import { useSummary } from '../hooks/useSummary';
@@ -18,23 +17,38 @@ import { SwitchWorkspaceModal } from '../components/SwitchWorkspaceModal';
 import { CreateWorkspaceModal } from '../components/CreateWorkspaceModal';
 
 export const WorkspaceDetailPage = () => {
-  const { workspaceId } = useParams();
-  const navigate = useNavigate();
+  // 1. Read single source of truth from Workspace Context (URL-driven)
+  const {
+    workspaceId,
+    activeTab,
+    currentWorkspace,
+    isWorkspaceLoading,
+    workspaces,
+    switchWorkspace,
+    setActiveTab,
+  } = useWorkspace();
 
-  const [activeTab, setActiveTab] = useState('documents');
+  // 2. Workspace-Scoped UI State (Resets on workspace change)
   const [selectedUnitId, setSelectedUnitId] = useState(null);
   const [isSwitchModalOpen, setIsSwitchModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  const { workspace, isLoading: isWsLoading } = useWorkspaceDetail(workspaceId);
-  const { workspaces, createWorkspace, isCreating } = useWorkspaces();
+  // Rule H: Reset UI State when workspaceId changes
+  useEffect(() => {
+    setSelectedUnitId(null);
+    setIsSwitchModalOpen(false);
+    setIsCreateModalOpen(false);
+  }, [workspaceId]);
+
+  // 3. Workspace-Scoped Data Fetching Hooks
+  const { createWorkspace, isCreating } = useWorkspaces();
   const { documents, uploadDocument, deleteDocument, retryDocument, isUploading, isDeleting } = useDocuments(workspaceId);
   const { summary, isLoading: isSummaryLoading, generateSummary, isGenerating: isGeneratingSummary } = useSummary(workspaceId);
   const { learningPath, unitContent, isUnitLoading, generateLearningPath, isGenerating: isGeneratingPath } = useLearningPath(workspaceId, selectedUnitId);
   const { messages, sendMessage, isSending, clearHistory } = useRagChat(workspaceId);
   const { collaborators, addCollaborator, removeCollaborator, isAdding, isRemoving } = useCollaborators(workspaceId);
 
-  // Fallback documents matching screenshot if no backend docs uploaded yet
+  // Fallback sample documents matching screenshot if no documents uploaded yet
   const defaultDocuments = [
     {
       id: 'doc_1',
@@ -52,20 +66,19 @@ export const WorkspaceDetailPage = () => {
     },
   ];
 
-  const displayWorkspace = workspace || { id: workspaceId, name: 'Operating system' };
   const displayDocuments = documents && documents.length > 0 ? documents : defaultDocuments;
 
   return (
     <div className="flex flex-col min-h-screen bg-[#f4f5fa] text-slate-800 font-sans">
       {/* Workspace Header */}
       <WorkspaceHeader
-        workspace={displayWorkspace}
+        workspace={currentWorkspace}
         documents={displayDocuments}
         collaborators={collaborators}
         onSwitchWorkspace={() => setIsSwitchModalOpen(true)}
       />
 
-      {/* Navigation Tabs */}
+      {/* Navigation Tabs (Deep Linking via URL query ?tab=...) */}
       <WorkspaceTabs
         activeTab={activeTab}
         onTabChange={setActiveTab}

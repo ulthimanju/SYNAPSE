@@ -1,77 +1,94 @@
 import { workspaceApi } from '../api/workspaceApi';
 
+/**
+ * Standardized Workspace React Query Keys & Scoped Query Options.
+ * Rule D: Every query key is strictly scoped by workspaceId.
+ */
 export const workspaceQueryKeys = {
   all: ['workspaces'],
   titles: ['workspaces', 'titles'],
-  detail: (id) => ['workspace', id],
-  documents: (id) => ['workspace', id, 'documents'],
-  summary: (id) => ['workspace', id, 'summary'],
-  learningPath: (id) => ['workspace', id, 'learningPath'],
-  unitContent: (id, unitId) => ['workspace', id, 'unit', unitId],
-  chatHistory: (id) => ['workspace', id, 'chatHistory'],
-  collaborators: (id) => ['workspace', id, 'collaborators'],
+  detail: (workspaceId) => ['workspace', workspaceId],
+  documents: (workspaceId) => ['documents', workspaceId],
+  summary: (workspaceId) => ['summary', workspaceId],
+  learningPath: (workspaceId) => ['learning-path', workspaceId],
+  unitContent: (workspaceId, unitId) => ['unit', workspaceId, unitId],
+  flashcards: (workspaceId) => ['flashcards', workspaceId],
+  quiz: (workspaceId) => ['quiz', workspaceId],
+  chatHistory: (workspaceId) => ['chat-history', workspaceId],
+  collaborators: (workspaceId) => ['collaborators', workspaceId],
 };
 
 export const workspaceQueries = {
   list: () => ({
     queryKey: workspaceQueryKeys.all,
-    queryFn: workspaceApi.getWorkspaces,
+    queryFn: ({ signal }) => workspaceApi.getWorkspaces(signal),
     staleTime: 60 * 1000,
   }),
 
   titles: () => ({
     queryKey: workspaceQueryKeys.titles,
-    queryFn: workspaceApi.getWorkspaceTitles,
+    queryFn: ({ signal }) => workspaceApi.getWorkspaceTitles(signal),
     staleTime: 60 * 1000,
   }),
 
-  detail: (id) => ({
-    queryKey: workspaceQueryKeys.detail(id),
-    queryFn: () => workspaceApi.getWorkspaceById(id),
-    enabled: !!id,
+  detail: (workspaceId) => ({
+    queryKey: workspaceQueryKeys.detail(workspaceId),
+    queryFn: ({ signal }) => workspaceApi.getWorkspaceById(workspaceId, signal),
+    enabled: !!workspaceId,
   }),
 
-  documents: (id) => ({
-    queryKey: workspaceQueryKeys.documents(id),
-    queryFn: () => workspaceApi.getDocuments(id),
-    enabled: !!id,
+  documents: (workspaceId) => ({
+    queryKey: workspaceQueryKeys.documents(workspaceId),
+    queryFn: ({ signal }) => workspaceApi.getDocuments(workspaceId, signal),
+    enabled: !!workspaceId,
     refetchInterval: (query) => {
-      // Auto refetch every 3s if any document is processing
       const docs = query.state.data || [];
       const hasProcessing = docs.some((d) => d.status === 'PROCESSING' || d.status === 'PENDING');
       return hasProcessing ? 3000 : false;
     },
   }),
 
-  summary: (id) => ({
-    queryKey: workspaceQueryKeys.summary(id),
-    queryFn: () => workspaceApi.getSummary(id),
-    enabled: !!id,
+  summary: (workspaceId) => ({
+    queryKey: workspaceQueryKeys.summary(workspaceId),
+    queryFn: ({ signal }) => workspaceApi.getSummary(workspaceId, signal),
+    enabled: !!workspaceId,
     retry: false,
   }),
 
-  learningPath: (id) => ({
-    queryKey: workspaceQueryKeys.learningPath(id),
-    queryFn: () => workspaceApi.getLearningPath(id),
-    enabled: !!id,
+  learningPath: (workspaceId) => ({
+    queryKey: workspaceQueryKeys.learningPath(workspaceId),
+    queryFn: ({ signal }) => workspaceApi.getLearningPath(workspaceId, signal),
+    enabled: !!workspaceId,
     retry: false,
   }),
 
-  unitContent: (id, unitId) => ({
-    queryKey: workspaceQueryKeys.unitContent(id, unitId),
-    queryFn: () => workspaceApi.getUnitContent(id, unitId),
-    enabled: !!id && !!unitId,
+  unitContent: (workspaceId, unitId) => ({
+    queryKey: workspaceQueryKeys.unitContent(workspaceId, unitId),
+    queryFn: ({ signal }) => workspaceApi.getUnitContent(workspaceId, unitId, signal),
+    enabled: !!workspaceId && !!unitId,
   }),
 
-  chatHistory: (id) => ({
-    queryKey: workspaceQueryKeys.chatHistory(id),
-    queryFn: () => workspaceApi.getChatHistory(id),
-    enabled: !!id,
+  flashcards: (workspaceId) => ({
+    queryKey: workspaceQueryKeys.flashcards(workspaceId),
+    queryFn: ({ signal }) => workspaceApi.getFlashcards(workspaceId, signal),
+    enabled: !!workspaceId,
   }),
 
-  collaborators: (id) => ({
-    queryKey: workspaceQueryKeys.collaborators(id),
-    queryFn: () => workspaceApi.getCollaborators(id),
-    enabled: !!id,
+  quiz: (workspaceId) => ({
+    queryKey: workspaceQueryKeys.quiz(workspaceId),
+    queryFn: ({ signal }) => workspaceApi.getQuiz(workspaceId, signal),
+    enabled: !!workspaceId,
+  }),
+
+  chatHistory: (workspaceId) => ({
+    queryKey: workspaceQueryKeys.chatHistory(workspaceId),
+    queryFn: ({ signal }) => workspaceApi.getChatHistory(workspaceId, signal),
+    enabled: !!workspaceId,
+  }),
+
+  collaborators: (workspaceId) => ({
+    queryKey: workspaceQueryKeys.collaborators(workspaceId),
+    queryFn: ({ signal }) => workspaceApi.getCollaborators(workspaceId, signal),
+    enabled: !!workspaceId,
   }),
 };
