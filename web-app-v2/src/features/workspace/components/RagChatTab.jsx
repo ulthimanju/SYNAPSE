@@ -1,75 +1,59 @@
-import React, { useState } from 'react';
-import { Send, MessageSquare, Trash2, Bot, User, Sparkles } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { MessageSquare, Send, Trash2, Bot, User, Sparkles } from 'lucide-react';
 import { MarkdownRenderer } from '../../../components/common/MarkdownRenderer';
 
 export const RagChatTab = ({ messages = [], onSendMessage, isSending, onClearHistory }) => {
   const [inputMessage, setInputMessage] = useState('');
+  const chatEndRef = useRef(null);
 
-  const suggestions = [
-    'What is memory allocation?',
-    'What is kernel?',
-    'What is operating system?',
-  ];
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isSending]);
 
-  const handleSend = async (e) => {
-    e?.preventDefault();
+  const handleSubmit = (e) => {
+    e.preventDefault();
     if (!inputMessage.trim() || isSending) return;
-    const msg = inputMessage;
+    onSendMessage(inputMessage.trim());
     setInputMessage('');
-    await onSendMessage(msg);
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto h-[calc(100vh-280px)] flex flex-col rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/80">
+    <div className="w-full max-w-5xl mx-auto flex flex-col h-[calc(100vh-220px)] min-h-[500px] animate-fadeIn font-sans">
+      {/* Chat Header */}
+      <div className="flex items-center justify-between p-5 rounded-t-3xl bg-white border border-slate-200/80 shadow-sm flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-blueprint-500/20 border border-blueprint-500/30 flex items-center justify-center text-blueprint-400">
-            <MessageSquare className="w-4 h-4" />
+          <div className="w-10 h-10 rounded-2xl bg-[#cff4fc] border border-cyan-100 flex items-center justify-center text-[#0891b2] shadow-sm">
+            <Bot className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="font-bold text-sm text-white">RAG Conversational Assistant</h3>
-            <p className="text-[11px] text-slate-400">Grounded in workspace vector embeddings (pgvector)</p>
+            <h3 className="font-extrabold text-base text-slate-900 tracking-tight">RAG Neural Assistant</h3>
+            <p className="text-xs text-slate-400">Contextual Q&A grounded strictly in workspace documents</p>
           </div>
         </div>
 
-        <button
-          onClick={onClearHistory}
-          className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition cursor-pointer"
-          title="Clear Chat History"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
+        {messages.length > 0 && (
+          <button
+            onClick={onClearHistory}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+            title="Clear Chat History"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Clear</span>
+          </button>
+        )}
       </div>
 
-      {/* Messages Scroll View */}
-      <div className="flex-1 p-6 overflow-y-auto space-y-6">
+      {/* Messages Scroll Viewport */}
+      <div className="flex-1 p-6 overflow-y-auto bg-[#f4f5fa] border-x border-slate-200/80 space-y-4">
         {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center space-y-6 my-auto py-12">
-            <div className="w-12 h-12 rounded-2xl bg-blueprint-600/20 border border-blueprint-500/30 flex items-center justify-center text-blueprint-400">
-              <Bot className="w-6 h-6" />
+          <div className="h-full flex flex-col items-center justify-center text-center space-y-4 p-8">
+            <div className="w-14 h-14 rounded-3xl bg-white border border-slate-200/80 flex items-center justify-center text-[#0891b2] shadow-sm">
+              <Sparkles className="w-7 h-7" />
             </div>
-            <div className="space-y-2">
-              <h4 className="font-semibold text-base text-white">Ask your Workspace Assistant</h4>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                Ask any question about your uploaded documents. Gemini RAG engine retrieves exact vector chunks and formulas.
-              </p>
-            </div>
-
-            {/* Suggestions */}
-            <div className="flex flex-wrap items-center justify-center gap-2 max-w-lg">
-              {suggestions.map((s, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    setInputMessage(s);
-                  }}
-                  className="px-3.5 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-xs text-slate-300 transition cursor-pointer"
-                >
-                  "{s}"
-                </button>
-              ))}
-            </div>
+            <p className="text-slate-800 font-bold text-base">Ask Anything About Your Documents</p>
+            <p className="text-slate-400 text-xs max-w-md leading-relaxed">
+              Query definitions, algorithm walkthroughs, formulas, or system architectures. Answers are dynamically retrieved from your uploaded files.
+            </p>
           </div>
         ) : (
           messages.map((msg, idx) => {
@@ -77,56 +61,74 @@ export const RagChatTab = ({ messages = [], onSendMessage, isSending, onClearHis
             return (
               <div
                 key={idx}
-                className={`flex items-start gap-4 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
+                className={`flex items-start gap-3 max-w-3xl ${isUser ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}
               >
+                {/* Avatar */}
                 <div
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 shadow-sm ${
                     isUser
-                      ? 'bg-blueprint-600 text-white'
-                      : 'bg-slate-800 border border-slate-700 text-blueprint-400'
+                      ? 'bg-[#1c3d98] text-white'
+                      : 'bg-[#cff4fc] text-[#0891b2] border border-cyan-100'
                   }`}
                 >
                   {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
                 </div>
 
+                {/* Message Bubble */}
                 <div
-                  className={`max-w-2xl p-5 rounded-2xl ${
+                  className={`p-4 rounded-2xl text-xs leading-relaxed shadow-sm ${
                     isUser
-                      ? 'bg-blueprint-700 text-white rounded-tr-none font-sans text-sm'
-                      : 'bg-slate-950 border border-slate-800 text-slate-200 rounded-tl-none'
+                      ? 'bg-[#1c3d98] text-white rounded-tr-none font-medium'
+                      : 'bg-white border border-slate-200/80 text-slate-800 rounded-tl-none font-sans'
                   }`}
                 >
                   {isUser ? (
-                    <p className="leading-relaxed">{msg.content || msg.message}</p>
+                    <p className="whitespace-pre-wrap">{msg.message || msg.content}</p>
                   ) : (
-                    <MarkdownRenderer content={msg.content || msg.response || msg.message} />
+                    <MarkdownRenderer content={msg.message || msg.content} />
                   )}
                 </div>
               </div>
             );
           })
         )}
+
+        {isSending && (
+          <div className="flex items-center gap-3 mr-auto max-w-md">
+            <div className="w-8 h-8 rounded-xl bg-[#cff4fc] border border-cyan-100 flex items-center justify-center text-[#0891b2] flex-shrink-0">
+              <Bot className="w-4 h-4" />
+            </div>
+            <div className="p-4 rounded-2xl rounded-tl-none bg-white border border-slate-200/80 text-slate-400 text-xs flex items-center gap-2 shadow-sm">
+              <Sparkles className="w-4 h-4 animate-spin text-[#0891b2]" />
+              <span>Retrieving vector embeddings...</span>
+            </div>
+          </div>
+        )}
+        <div ref={chatEndRef} />
       </div>
 
-      {/* Input Bar */}
-      <form onSubmit={handleSend} className="p-4 border-t border-slate-800 bg-slate-950/80">
-        <div className="relative flex items-center">
-          <input
-            type="text"
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            placeholder="Ask a question about your workspace documents..."
-            className="w-full pl-5 pr-14 py-3.5 rounded-2xl bg-slate-900 border border-slate-800 text-white text-sm focus:outline-none focus:border-blueprint-500 placeholder:text-slate-500 font-sans"
-          />
+      {/* Input Action Bar */}
+      <form
+        onSubmit={handleSubmit}
+        className="p-4 rounded-b-3xl bg-white border border-slate-200/80 shadow-sm flex items-center gap-3 flex-shrink-0"
+      >
+        <input
+          type="text"
+          value={inputMessage}
+          onChange={(e) => setInputMessage(e.target.value)}
+          placeholder="Ask a question about your workspace documents..."
+          disabled={isSending}
+          className="flex-1 px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-[#1c3d98] transition"
+        />
 
-          <button
-            type="submit"
-            disabled={!inputMessage.trim() || isSending}
-            className="absolute right-2 p-2.5 rounded-xl bg-blueprint-600 hover:bg-blueprint-500 disabled:opacity-40 text-white transition cursor-pointer"
-          >
-            <Send className="w-4 h-4" />
-          </button>
-        </div>
+        <button
+          type="submit"
+          disabled={!inputMessage.trim() || isSending}
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-[#1c3d98] hover:bg-blue-800 text-white font-semibold text-xs shadow-md transition active:scale-98 cursor-pointer disabled:opacity-50"
+        >
+          <Send className="w-4 h-4" />
+          <span>Send</span>
+        </button>
       </form>
     </div>
   );

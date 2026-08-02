@@ -1,111 +1,138 @@
 import React, { useState } from 'react';
-import { Users, UserPlus, Trash2, Mail, ShieldCheck } from 'lucide-react';
-import { toast } from 'sonner';
+import { Users, UserPlus, Shield, Trash2, Mail, CheckCircle2 } from 'lucide-react';
 
 export const CollaboratorsTab = ({ collaborators = [], onAddCollaborator, onRemoveCollaborator, isAdding, isRemoving }) => {
-  const [emailInput, setEmailInput] = useState('');
-  const [roleInput, setRoleInput] = useState('viewer');
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState('viewer');
 
-  const handleAdd = async (e) => {
+  const handleAdd = (e) => {
     e.preventDefault();
-    if (!emailInput.trim() || isAdding) return;
-
-    try {
-      await onAddCollaborator({ email: emailInput, role: roleInput });
-      toast.success(`Invited '${emailInput}' successfully!`);
-      setEmailInput('');
-    } catch (err) {
-      toast.error('Failed to add collaborator.');
-    }
+    if (!email.trim() || isAdding) return;
+    onAddCollaborator({ email: email.trim(), role });
+    setEmail('');
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-8">
-      {/* Add Collaborator Card */}
-      <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 shadow-lg">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blueprint-500/20 border border-blueprint-500/30 flex items-center justify-center text-blueprint-400">
-            <UserPlus className="w-5 h-5" />
+    <div className="w-full max-w-5xl mx-auto space-y-6 animate-fadeIn font-sans">
+      {/* Top Banner */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-3xl bg-white border border-slate-200/80 shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-[#cff4fc] border border-cyan-100 flex items-center justify-center text-[#0891b2] shadow-sm">
+            <Users className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="font-bold text-base text-white">Invite Workspace Collaborator</h3>
-            <p className="text-xs text-slate-400">Add team members by email address to share workspace documents & learning paths</p>
+            <h3 className="font-extrabold text-lg text-slate-900 tracking-tight">Workspace Collaborators</h3>
+            <p className="text-xs text-slate-400">Invite team members to read, edit, or manage this workspace</p>
           </div>
         </div>
 
-        <form onSubmit={handleAdd} className="flex flex-col sm:flex-row gap-3 pt-2">
-          <div className="relative flex-1">
-            <Mail className="w-4 h-4 text-slate-500 absolute left-4 top-3.5" />
+        <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-[#cff4fc] text-[#0891b2] border border-cyan-100 w-fit">
+          {collaborators.length} Members
+        </span>
+      </div>
+
+      {/* Invite Member Section */}
+      <form onSubmit={handleAdd} className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-sm space-y-4">
+        <h4 className="text-xs font-mono font-bold tracking-widest text-slate-400 uppercase">
+          INVITE NEW COLLABORATOR
+        </h4>
+
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="flex-1 relative">
+            <Mail className="w-4 h-4 text-slate-400 absolute left-4 top-3.5" />
             <input
               type="email"
-              value={emailInput}
-              onChange={(e) => setEmailInput(e.target.value)}
-              placeholder="Enter user email address..."
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="colleague@university.edu"
               required
-              className="w-full pl-11 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-sans focus:outline-none focus:border-blueprint-500"
+              className="w-full pl-11 pr-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-[#1c3d98]"
             />
           </div>
 
           <select
-            value={roleInput}
-            onChange={(e) => setRoleInput(e.target.value)}
-            className="px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-sans focus:outline-none focus:border-blueprint-500"
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            className="px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#1c3d98]"
           >
-            <option value="viewer">Viewer</option>
-            <option value="editor">Editor</option>
-            <option value="admin">Admin</option>
+            <option value="viewer">Viewer (Read Only)</option>
+            <option value="editor">Editor (Can Upload)</option>
+            <option value="admin">Admin (Full Control)</option>
           </select>
 
           <button
             type="submit"
-            disabled={isAdding || !emailInput.trim()}
-            className="px-6 py-3 rounded-xl bg-blueprint-600 hover:bg-blueprint-500 disabled:opacity-40 text-white font-semibold text-xs transition cursor-pointer whitespace-nowrap"
+            disabled={!email.trim() || isAdding}
+            className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-[#1c3d98] hover:bg-blue-800 text-white font-semibold text-xs shadow-md transition active:scale-98 cursor-pointer disabled:opacity-50"
           >
-            {isAdding ? 'Inviting...' : 'Send Invite'}
+            <UserPlus className="w-4 h-4" />
+            <span>{isAdding ? 'Inviting...' : 'Invite Member'}</span>
           </button>
-        </form>
-      </div>
+        </div>
+      </form>
 
-      {/* Collaborator List */}
-      <div className="space-y-4">
-        <h4 className="text-xs font-mono font-bold tracking-widest text-slate-400 uppercase">
-          ACTIVE COLLABORATORS ({collaborators.length})
+      {/* Collaborators List */}
+      <div className="space-y-3">
+        <h4 className="text-xs font-mono font-bold tracking-widest text-slate-400 uppercase px-1">
+          ACTIVE MEMBERS ({collaborators.length})
         </h4>
 
         {collaborators.length === 0 ? (
-          <div className="p-12 text-center rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2">
-            <Users className="w-8 h-8 text-slate-600 mx-auto" />
-            <p className="text-slate-300 font-medium text-sm">No collaborators added yet</p>
+          <div className="p-12 text-center rounded-3xl bg-white border border-slate-200/80 shadow-sm space-y-3">
+            <Users className="w-10 h-10 text-slate-300 mx-auto" />
+            <p className="text-slate-800 font-bold text-sm">No Collaborators Yet</p>
+            <p className="text-slate-400 text-xs max-w-md mx-auto">
+              Use the form above to invite team members to collaborate on documents and study paths.
+            </p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {collaborators.map((c, idx) => {
-              const displayEmail = c.email || c.user_email || c.user_id || 'Collaborator';
+          <div className="space-y-2">
+            {collaborators.map((collab) => {
+              const collabId = collab.id || collab._id;
+              const isOwner = collab.role === 'owner';
+
               return (
                 <div
-                  key={c.id || c._id || idx}
-                  className="flex items-center justify-between p-4 rounded-2xl bg-slate-900 border border-slate-800"
+                  key={collabId}
+                  className="flex items-center justify-between p-4 rounded-2xl bg-white border border-slate-200/80 hover:border-slate-300 transition shadow-sm"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-blueprint-900 border border-blueprint-500/40 flex items-center justify-center text-xs font-bold text-blueprint-200 uppercase">
-                      {displayEmail[0]}
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <div className="w-10 h-10 rounded-2xl bg-[#1c3d98] text-white flex items-center justify-center font-bold text-sm shadow-sm flex-shrink-0">
+                      {(collab.email || collab.user_id || 'U')[0].toUpperCase()}
                     </div>
-                    <div>
-                      <p className="font-semibold text-sm text-white font-sans">{displayEmail}</p>
-                      <p className="text-[11px] text-slate-400 font-mono">Role: {c.role || 'Member'}</p>
+
+                    <div className="min-w-0 truncate">
+                      <h5 className="font-bold text-sm text-slate-800 truncate">
+                        {collab.email || `User (${collab.user_id?.slice(0, 8)})`}
+                      </h5>
+                      <p className="text-[11px] text-slate-400 font-mono">
+                        Joined {collab.joined_at ? new Date(collab.joined_at).toLocaleDateString() : 'Recently'}
+                      </p>
                     </div>
                   </div>
 
-                  {c.role !== 'owner' && (
-                    <button
-                      onClick={() => onRemoveCollaborator(c.id || c.collaborator_id || c.user_id)}
-                      disabled={isRemoving}
-                      className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"
-                      title="Remove Collaborator"
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-mono font-bold capitalize ${
+                        isOwner
+                          ? 'bg-[#cff4fc] text-[#0891b2] border border-cyan-100'
+                          : 'bg-slate-100 text-slate-600 border border-slate-200'
+                      }`}
                     >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
+                      {collab.role}
+                    </span>
+
+                    {!isOwner && (
+                      <button
+                        onClick={() => onRemoveCollaborator(collabId)}
+                        disabled={isRemoving}
+                        className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                        title="Remove Member"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
