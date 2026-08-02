@@ -1,11 +1,11 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { LoadingScreen } from '../components/LoadingScreen';
 
 /**
- * AuthCallbackPage — Passive handoff screen.
- * Backend completes OAuth and sets HttpOnly cookies before redirecting to the frontend.
- * This component defers post-login routing to the backend's target destination (/workspaces).
+ * AuthCallbackPage — Passive handoff loading screen.
+ * Post-login routing is fully server-owned by the identity service.
+ * The backend sets HttpOnly session cookies and issues the direct HTTP 302 redirect target.
  */
 export const AuthCallbackPage = () => {
-  return <Navigate to="/workspaces" replace />;
+  return <LoadingScreen message="Completing authentication & establishing secure session..." />;
 };
