@@ -3,12 +3,12 @@ import { workspaceQueries, workspaceQueryKeys } from '../queries/workspaceQuerie
 import { workspaceApi } from '../api/workspaceApi';
 import { useWorkspace } from '../context/WorkspaceContext';
 
-export const useCollaborators = (workspaceId) => {
+export const useCollaborators = (workspaceId, isTabActive = true) => {
   const queryClient = useQueryClient();
   const { userId } = useWorkspace();
 
   const { data: collaborators = [], isLoading } = useQuery(
-    workspaceQueries.collaborators(userId, workspaceId)
+    workspaceQueries.collaborators(userId, workspaceId, isTabActive)
   );
 
   const addMutation = useMutation({

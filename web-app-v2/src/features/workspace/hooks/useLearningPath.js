@@ -3,16 +3,16 @@ import { workspaceQueries, workspaceQueryKeys } from '../queries/workspaceQuerie
 import { workspaceApi } from '../api/workspaceApi';
 import { useWorkspace } from '../context/WorkspaceContext';
 
-export const useLearningPath = (workspaceId, selectedUnitId = null) => {
+export const useLearningPath = (workspaceId, selectedUnitId = null, isTabActive = true) => {
   const queryClient = useQueryClient();
   const { userId } = useWorkspace();
 
   const { data: learningPath, isLoading: isPathLoading } = useQuery(
-    workspaceQueries.learningPath(userId, workspaceId)
+    workspaceQueries.learningPath(userId, workspaceId, isTabActive)
   );
 
   const { data: unitContent, isLoading: isUnitLoading } = useQuery(
-    workspaceQueries.unitContent(userId, workspaceId, selectedUnitId)
+    workspaceQueries.unitContent(userId, workspaceId, selectedUnitId, isTabActive)
   );
 
   const generateMutation = useMutation({

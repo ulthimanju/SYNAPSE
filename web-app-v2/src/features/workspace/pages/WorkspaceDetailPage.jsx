@@ -38,20 +38,36 @@ export const WorkspaceDetailPage = () => {
   const [isSwitchModalOpen, setIsSwitchModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  // Rule H: Reset UI State when workspaceId changes
+  // Reset UI State when workspaceId changes
   useEffect(() => {
     setSelectedUnitId(null);
     setIsSwitchModalOpen(false);
     setIsCreateModalOpen(false);
   }, [workspaceId]);
 
-  // 4. Workspace-Scoped Data Fetching Hooks
+  // 4. Tab-Level Lazy Loading — Pass boolean isTabActive to fetch ONLY when tab is open!
   const { createWorkspace, isCreating } = useWorkspaces();
-  const { documents, uploadDocument, deleteDocument, retryDocument, isUploading, isDeleting } = useDocuments(workspaceId);
-  const { summary, isLoading: isSummaryLoading, generateSummary, isGenerating: isGeneratingSummary } = useSummary(workspaceId);
-  const { learningPath, unitContent, isUnitLoading, generateLearningPath, isGenerating: isGeneratingPath } = useLearningPath(workspaceId, selectedUnitId);
-  const { messages, sendMessage, isSending, clearHistory } = useRagChat(workspaceId);
-  const { collaborators, addCollaborator, removeCollaborator, isAdding, isRemoving } = useCollaborators(workspaceId);
+  const { documents, uploadDocument, deleteDocument, retryDocument, isUploading, isDeleting } = useDocuments(
+    workspaceId,
+    activeTab === 'documents'
+  );
+  const { summary, isLoading: isSummaryLoading, generateSummary, isGenerating: isGeneratingSummary } = useSummary(
+    workspaceId,
+    activeTab === 'summary'
+  );
+  const { learningPath, unitContent, isUnitLoading, generateLearningPath, isGenerating: isGeneratingPath } = useLearningPath(
+    workspaceId,
+    selectedUnitId,
+    activeTab === 'learning-path'
+  );
+  const { messages, sendMessage, isSending, clearHistory } = useRagChat(
+    workspaceId,
+    activeTab === 'chat'
+  );
+  const { collaborators, addCollaborator, removeCollaborator, isAdding, isRemoving } = useCollaborators(
+    workspaceId,
+    activeTab === 'collaborators' || activeTab === 'documents'
+  );
 
   return (
     <div className="flex flex-col min-h-screen bg-[#f4f5fa] text-slate-800 font-sans">

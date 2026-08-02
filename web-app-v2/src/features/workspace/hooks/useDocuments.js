@@ -3,12 +3,12 @@ import { workspaceQueries, workspaceQueryKeys } from '../queries/workspaceQuerie
 import { workspaceApi } from '../api/workspaceApi';
 import { useWorkspace } from '../context/WorkspaceContext';
 
-export const useDocuments = (workspaceId) => {
+export const useDocuments = (workspaceId, isTabActive = true) => {
   const queryClient = useQueryClient();
   const { userId } = useWorkspace();
 
   const { data: documents = [], isLoading, isError, error } = useQuery(
-    workspaceQueries.documents(userId, workspaceId)
+    workspaceQueries.documents(userId, workspaceId, isTabActive)
   );
 
   const uploadMutation = useMutation({

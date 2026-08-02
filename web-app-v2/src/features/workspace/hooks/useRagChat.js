@@ -3,12 +3,12 @@ import { workspaceQueries, workspaceQueryKeys } from '../queries/workspaceQuerie
 import { workspaceApi } from '../api/workspaceApi';
 import { useWorkspace } from '../context/WorkspaceContext';
 
-export const useRagChat = (workspaceId) => {
+export const useRagChat = (workspaceId, isTabActive = true) => {
   const queryClient = useQueryClient();
   const { userId } = useWorkspace();
 
   const { data: messages = [], isLoading } = useQuery(
-    workspaceQueries.chatHistory(userId, workspaceId)
+    workspaceQueries.chatHistory(userId, workspaceId, isTabActive)
   );
 
   const sendMessageMutation = useMutation({
