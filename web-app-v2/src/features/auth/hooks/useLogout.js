@@ -8,17 +8,13 @@ export const useLogout = () => {
   return useMutation({
     mutationFn: authService.logout,
     onSuccess: () => {
-      localStorage.clear();
-      queryClient.setQueryData(authQueryKeys.session, null);
-      queryClient.removeQueries();
-      queryClient.clear();
+      // Server-driven logout: backend revokes HttpOnly cookies.
+      // Invalidate session query to reflect unauthenticated state and redirect to /login.
+      queryClient.invalidateQueries({ queryKey: authQueryKeys.session });
       window.location.href = '/login';
     },
     onError: () => {
-      localStorage.clear();
-      queryClient.setQueryData(authQueryKeys.session, null);
-      queryClient.removeQueries();
-      queryClient.clear();
+      queryClient.invalidateQueries({ queryKey: authQueryKeys.session });
       window.location.href = '/login';
     },
   });

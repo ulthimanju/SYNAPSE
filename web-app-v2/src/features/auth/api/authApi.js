@@ -6,14 +6,11 @@ export const authApi = {
     window.location.href = '/api/v1/auth/google/login';
   },
 
-  // Verifies current HttpOnly Cookie session
+  // Verifies current HttpOnly Cookie session directly from backend.
+  // Errors surface directly to React Query so backend remains source of truth.
   getSession: async () => {
-    try {
-      const res = await axiosInstance.get('/auth/session');
-      return res?.data?.data || res?.data || { authenticated: false, user: null };
-    } catch (err) {
-      return { authenticated: false, user: null, roles: [] };
-    }
+    const res = await axiosInstance.get('/auth/session');
+    return res?.data?.data || res?.data;
   },
 
   // Performs refresh token rotation
@@ -22,7 +19,7 @@ export const authApi = {
     return res?.data?.data || res?.data;
   },
 
-  // Logs out user and revokes HttpOnly cookies
+  // Logs out user and revokes HttpOnly cookies on backend
   logout: async () => {
     const res = await axiosInstance.post('/auth/logout');
     return res?.data;
