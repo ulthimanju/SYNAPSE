@@ -7,7 +7,7 @@ export const useDocuments = (workspaceId, isTabActive = true) => {
   const queryClient = useQueryClient();
   const { userId } = useWorkspace();
 
-  const { data: documents = [], isLoading, isError, error } = useQuery(
+  const { data: documents = [], isLoading, isFetching, isError, error } = useQuery(
     workspaceQueries.documents(userId, workspaceId, isTabActive)
   );
 
@@ -37,6 +37,7 @@ export const useDocuments = (workspaceId, isTabActive = true) => {
   return {
     documents,
     isLoading,
+    isFetching,
     isError,
     error,
     uploadDocument: uploadMutation.mutateAsync,

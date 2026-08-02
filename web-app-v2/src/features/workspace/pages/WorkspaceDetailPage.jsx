@@ -49,10 +49,17 @@ export const WorkspaceDetailPage = () => {
   const isChatTabActive = !!workspaceId && activeTab === 'chat';
   const isCollabTabActive = !!workspaceId && (activeTab === 'collaborators' || activeTab === 'documents');
 
-  const { documents, uploadDocument, deleteDocument, retryDocument, isUploading, isDeleting } = useDocuments(
-    workspaceId,
-    isDocTabActive
-  );
+  const {
+    documents,
+    uploadDocument,
+    deleteDocument,
+    retryDocument,
+    isLoading: isDocumentsLoading,
+    isFetching: isDocumentsFetching,
+    isUploading,
+    isDeleting,
+  } = useDocuments(workspaceId, isDocTabActive);
+  const isDocumentsBusy = isDocTabActive && (isDocumentsLoading || isDocumentsFetching);
   const { summary, isLoading: isSummaryLoading, generateSummary, isGenerating: isGeneratingSummary } = useSummary(
     workspaceId,
     isSummaryTabActive
@@ -83,6 +90,7 @@ export const WorkspaceDetailPage = () => {
         workspace={currentWorkspace}
         documents={documents}
         collaborators={collaborators}
+        isLoading={isDocumentsBusy}
         onSwitchWorkspace={() => setIsSwitchModalOpen(true)}
       />
 
@@ -101,6 +109,7 @@ export const WorkspaceDetailPage = () => {
             onUpload={uploadDocument}
             onDelete={deleteDocument}
             onRetry={retryDocument}
+            isLoading={isDocumentsBusy}
             isUploading={isUploading}
             isDeleting={isDeleting}
           />
