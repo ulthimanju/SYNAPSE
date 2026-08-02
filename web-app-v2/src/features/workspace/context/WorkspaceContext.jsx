@@ -20,6 +20,8 @@ export const WorkspaceProvider = ({ children }) => {
 
   // AbortController ref for canceling in-flight HTTP requests when switching workspaces
   const abortControllerRef = useRef(null);
+  // Track the previous workspaceId to distinguish initial-load vs workspace-switch
+  const prevWorkspaceIdRef = useRef(null);
 
   // 2. Fetch list of available workspaces (User-Scoped)
   const { data: workspaces = [] } = useQuery(workspaceQueries.list(userId));
@@ -28,19 +30,26 @@ export const WorkspaceProvider = ({ children }) => {
   useEffect(() => {
     if (!workspaceId) return;
 
+    const prevId = prevWorkspaceIdRef.current;
+    prevWorkspaceIdRef.current = workspaceId;
+
     // Abort previous in-flight HTTP requests immediately
     if (abortControllerRef.current) {
       abortControllerRef.current.abort('Workspace switched');
     }
     abortControllerRef.current = new AbortController();
 
-    // Cancel only workspace-scoped React Query queries, NOT global auth/session queries
-    queryClient.cancelQueries({ queryKey: ['workspace'] });
-    queryClient.cancelQueries({ queryKey: ['documents'] });
-    queryClient.cancelQueries({ queryKey: ['summary'] });
-    queryClient.cancelQueries({ queryKey: ['learning-path'] });
-    queryClient.cancelQueries({ queryKey: ['chat-history'] });
-    queryClient.cancelQueries({ queryKey: ['collaborators'] });
+    // Only cancel stale queries when SWITCHING between two different workspaces.
+    // On initial workspace open (prevId was null), do NOT cancel — that would
+    // kill the documents query that just became enabled, causing an empty-on-first-load bug.
+    if (prevId && prevId !== workspaceId) {
+      queryClient.cancelQueries({ queryKey: ['workspace'] });
+      queryClient.cancelQueries({ queryKey: ['documents'] });
+      queryClient.cancelQueries({ queryKey: ['summary'] });
+      queryClient.cancelQueries({ queryKey: ['learning-path'] });
+      queryClient.cancelQueries({ queryKey: ['chat-history'] });
+      queryClient.cancelQueries({ queryKey: ['collaborators'] });
+    }
 
     return () => {
       if (abortControllerRef.current) {
