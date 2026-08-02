@@ -1,35 +1,35 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { workspaceQueries, workspaceQueryKeys } from '../queries/workspaceQueries';
 import { workspaceApi } from '../api/workspaceApi';
+import { useWorkspace } from '../context/WorkspaceContext';
 
 export const useCollaborators = (workspaceId) => {
   const queryClient = useQueryClient();
+  const { userId } = useWorkspace();
 
-  const { data: collaborators = [], isLoading, isError, error } = useQuery(
-    workspaceQueries.collaborators(workspaceId)
+  const { data: collaborators = [], isLoading } = useQuery(
+    workspaceQueries.collaborators(userId, workspaceId)
   );
 
   const addMutation = useMutation({
     mutationFn: ({ email, role }) => workspaceApi.addCollaborator(workspaceId, email, role),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.collaborators(workspaceId) });
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.detail(workspaceId) });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.collaborators(userId, workspaceId) });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.detail(userId, workspaceId) });
     },
   });
 
   const removeMutation = useMutation({
     mutationFn: (collaboratorId) => workspaceApi.removeCollaborator(workspaceId, collaboratorId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.collaborators(workspaceId) });
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.detail(workspaceId) });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.collaborators(userId, workspaceId) });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.detail(userId, workspaceId) });
     },
   });
 
   return {
     collaborators,
     isLoading,
-    isError,
-    error,
     addCollaborator: addMutation.mutateAsync,
     isAdding: addMutation.isPending,
     removeCollaborator: removeMutation.mutateAsync,

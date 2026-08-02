@@ -1,32 +1,32 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { workspaceQueries, workspaceQueryKeys } from '../queries/workspaceQueries';
 import { workspaceApi } from '../api/workspaceApi';
+import { useWorkspace } from '../context/WorkspaceContext';
 
 export const useWorkspaces = () => {
   const queryClient = useQueryClient();
+  const { userId } = useWorkspace();
 
-  const { data: workspaces = [], isLoading, isError, error } = useQuery(workspaceQueries.list());
-  const { data: titles = [] } = useQuery(workspaceQueries.titles());
+  const { data: workspaces = [], isLoading, isError, error } = useQuery(workspaceQueries.list(userId));
 
   const createMutation = useMutation({
-    mutationFn: workspaceApi.createWorkspace,
+    mutationFn: (payload) => workspaceApi.createWorkspace(payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.all });
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.titles });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.all(userId) });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.titles(userId) });
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: workspaceApi.deleteWorkspace,
+    mutationFn: (workspaceId) => workspaceApi.deleteWorkspace(workspaceId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.all });
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.titles });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.all(userId) });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.titles(userId) });
     },
   });
 
   return {
     workspaces,
-    titles,
     isLoading,
     isError,
     error,

@@ -2,93 +2,95 @@ import { workspaceApi } from '../api/workspaceApi';
 
 /**
  * Standardized Workspace React Query Keys & Scoped Query Options.
- * Rule D: Every query key is strictly scoped by workspaceId.
+ * Rule 1: Every query key MUST be uniquely isolated using BOTH userId and workspaceId.
+ * No generic or incomplete query keys exist.
  */
 export const workspaceQueryKeys = {
-  all: ['workspaces'],
-  titles: ['workspaces', 'titles'],
-  detail: (workspaceId) => ['workspace', workspaceId],
-  documents: (workspaceId) => ['documents', workspaceId],
-  summary: (workspaceId) => ['summary', workspaceId],
-  learningPath: (workspaceId) => ['learning-path', workspaceId],
-  unitContent: (workspaceId, unitId) => ['unit', workspaceId, unitId],
-  flashcards: (workspaceId) => ['flashcards', workspaceId],
-  quiz: (workspaceId) => ['quiz', workspaceId],
-  chatHistory: (workspaceId) => ['chat-history', workspaceId],
-  collaborators: (workspaceId) => ['collaborators', workspaceId],
+  all: (userId) => ['workspaces', userId || 'anonymous'],
+  titles: (userId) => ['workspaces', userId || 'anonymous', 'titles'],
+  detail: (userId, workspaceId) => ['workspace', userId || 'anonymous', workspaceId || 'none'],
+  documents: (userId, workspaceId) => ['documents', userId || 'anonymous', workspaceId || 'none'],
+  summary: (userId, workspaceId) => ['summary', userId || 'anonymous', workspaceId || 'none'],
+  learningPath: (userId, workspaceId) => ['learning-path', userId || 'anonymous', workspaceId || 'none'],
+  unitContent: (userId, workspaceId, unitId) => ['unit', userId || 'anonymous', workspaceId || 'none', unitId || 'none'],
+  flashcards: (userId, workspaceId) => ['flashcards', userId || 'anonymous', workspaceId || 'none'],
+  quiz: (userId, workspaceId) => ['quiz', userId || 'anonymous', workspaceId || 'none'],
+  chatHistory: (userId, workspaceId) => ['chat-history', userId || 'anonymous', workspaceId || 'none'],
+  collaborators: (userId, workspaceId) => ['collaborators', userId || 'anonymous', workspaceId || 'none'],
 };
 
 export const workspaceQueries = {
-  list: () => ({
-    queryKey: workspaceQueryKeys.all,
+  list: (userId) => ({
+    queryKey: workspaceQueryKeys.all(userId),
     queryFn: ({ signal }) => workspaceApi.getWorkspaces(signal),
     staleTime: 60 * 1000,
   }),
 
-  titles: () => ({
-    queryKey: workspaceQueryKeys.titles,
+  titles: (userId) => ({
+    queryKey: workspaceQueryKeys.titles(userId),
     queryFn: ({ signal }) => workspaceApi.getWorkspaceTitles(signal),
     staleTime: 60 * 1000,
   }),
 
-  detail: (workspaceId) => ({
-    queryKey: workspaceQueryKeys.detail(workspaceId),
+  detail: (userId, workspaceId) => ({
+    queryKey: workspaceQueryKeys.detail(userId, workspaceId),
     queryFn: ({ signal }) => workspaceApi.getWorkspaceById(workspaceId, signal),
-    enabled: !!workspaceId,
+    enabled: !!userId && !!workspaceId,
   }),
 
-  documents: (workspaceId) => ({
-    queryKey: workspaceQueryKeys.documents(workspaceId),
+  documents: (userId, workspaceId) => ({
+    queryKey: workspaceQueryKeys.documents(userId, workspaceId),
     queryFn: ({ signal }) => workspaceApi.getDocuments(workspaceId, signal),
-    enabled: !!workspaceId,
+    enabled: !!userId && !!workspaceId,
     refetchInterval: (query) => {
+      if (!workspaceId) return false;
       const docs = query.state.data || [];
       const hasProcessing = docs.some((d) => d.status === 'PROCESSING' || d.status === 'PENDING');
       return hasProcessing ? 3000 : false;
     },
   }),
 
-  summary: (workspaceId) => ({
-    queryKey: workspaceQueryKeys.summary(workspaceId),
+  summary: (userId, workspaceId) => ({
+    queryKey: workspaceQueryKeys.summary(userId, workspaceId),
     queryFn: ({ signal }) => workspaceApi.getSummary(workspaceId, signal),
-    enabled: !!workspaceId,
+    enabled: !!userId && !!workspaceId,
     retry: false,
   }),
 
-  learningPath: (workspaceId) => ({
-    queryKey: workspaceQueryKeys.learningPath(workspaceId),
+  learningPath: (userId, workspaceId) => ({
+    queryKey: workspaceQueryKeys.learningPath(userId, workspaceId),
     queryFn: ({ signal }) => workspaceApi.getLearningPath(workspaceId, signal),
-    enabled: !!workspaceId,
+    enabled: !!userId && !!workspaceId,
     retry: false,
   }),
 
-  unitContent: (workspaceId, unitId) => ({
-    queryKey: workspaceQueryKeys.unitContent(workspaceId, unitId),
+  unitContent: (userId, workspaceId, unitId) => ({
+    queryKey: workspaceQueryKeys.unitContent(userId, workspaceId, unitId),
     queryFn: ({ signal }) => workspaceApi.getUnitContent(workspaceId, unitId, signal),
-    enabled: !!workspaceId && !!unitId,
+    enabled: !!userId && !!workspaceId && !!unitId,
   }),
 
-  flashcards: (workspaceId) => ({
-    queryKey: workspaceQueryKeys.flashcards(workspaceId),
+  flashcards: (userId, workspaceId) => ({
+    queryKey: workspaceQueryKeys.flashcards(userId, workspaceId),
     queryFn: ({ signal }) => workspaceApi.getFlashcards(workspaceId, signal),
-    enabled: !!workspaceId,
+    enabled: !!userId && !!workspaceId,
   }),
 
-  quiz: (workspaceId) => ({
-    queryKey: workspaceQueryKeys.quiz(workspaceId),
+  quiz: (userId, workspaceId) => ({
+    queryKey: workspaceQueryKeys.quiz(userId, workspaceId),
     queryFn: ({ signal }) => workspaceApi.getQuiz(workspaceId, signal),
-    enabled: !!workspaceId,
+    enabled: !!userId && !!workspaceId,
   }),
 
-  chatHistory: (workspaceId) => ({
-    queryKey: workspaceQueryKeys.chatHistory(workspaceId),
+  chatHistory: (userId, workspaceId) => ({
+    queryKey: workspaceQueryKeys.chatHistory(userId, workspaceId),
     queryFn: ({ signal }) => workspaceApi.getChatHistory(workspaceId, signal),
-    enabled: !!workspaceId,
+    enabled: !!userId && !!workspaceId,
   }),
 
-  collaborators: (workspaceId) => ({
-    queryKey: workspaceQueryKeys.collaborators(workspaceId),
+  collaborators: (userId, workspaceId) => ({
+    queryKey: workspaceQueryKeys.collaborators(userId, workspaceId),
     queryFn: ({ signal }) => workspaceApi.getCollaborators(workspaceId, signal),
-    enabled: !!workspaceId,
+    enabled: !!userId && !!workspaceId,
   }),
 };

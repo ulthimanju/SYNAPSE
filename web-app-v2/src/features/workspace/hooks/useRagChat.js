@@ -1,35 +1,36 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { workspaceQueries, workspaceQueryKeys } from '../queries/workspaceQueries';
 import { workspaceApi } from '../api/workspaceApi';
+import { useWorkspace } from '../context/WorkspaceContext';
 
 export const useRagChat = (workspaceId) => {
   const queryClient = useQueryClient();
+  const { userId } = useWorkspace();
 
-  const { data: messages = [], isLoading, isError, error } = useQuery(workspaceQueries.chatHistory(workspaceId));
+  const { data: messages = [], isLoading } = useQuery(
+    workspaceQueries.chatHistory(userId, workspaceId)
+  );
 
-  const sendMutation = useMutation({
+  const sendMessageMutation = useMutation({
     mutationFn: (message) => workspaceApi.sendChatMessage(workspaceId, message),
-    onSuccess: (data) => {
-      // Optimistically update chat history
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.chatHistory(workspaceId) });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.chatHistory(userId, workspaceId) });
     },
   });
 
-  const clearMutation = useMutation({
+  const clearHistoryMutation = useMutation({
     mutationFn: () => workspaceApi.clearChatHistory(workspaceId),
     onSuccess: () => {
-      queryClient.setQueryData(workspaceQueryKeys.chatHistory(workspaceId), []);
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.chatHistory(userId, workspaceId) });
     },
   });
 
   return {
     messages,
     isLoading,
-    isError,
-    error,
-    sendMessage: sendMutation.mutateAsync,
-    isSending: sendMutation.isPending,
-    clearHistory: clearMutation.mutateAsync,
-    isClearing: clearMutation.isPending,
+    sendMessage: sendMessageMutation.mutateAsync,
+    isSending: sendMessageMutation.isPending,
+    clearHistory: clearHistoryMutation.mutateAsync,
+    isClearing: clearHistoryMutation.isPending,
   };
 };

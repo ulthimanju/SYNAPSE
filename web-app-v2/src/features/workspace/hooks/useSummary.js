@@ -1,16 +1,20 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { workspaceQueries, workspaceQueryKeys } from '../queries/workspaceQueries';
 import { workspaceApi } from '../api/workspaceApi';
+import { useWorkspace } from '../context/WorkspaceContext';
 
 export const useSummary = (workspaceId) => {
   const queryClient = useQueryClient();
+  const { userId } = useWorkspace();
 
-  const { data: summary, isLoading, isError, error } = useQuery(workspaceQueries.summary(workspaceId));
+  const { data: summary, isLoading, isError, error } = useQuery(
+    workspaceQueries.summary(userId, workspaceId)
+  );
 
   const generateMutation = useMutation({
     mutationFn: () => workspaceApi.generateSummary(workspaceId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.summary(workspaceId) });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.summary(userId, workspaceId) });
     },
   });
 
