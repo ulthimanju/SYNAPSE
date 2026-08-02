@@ -43,8 +43,13 @@ async def proxy_request(target_url: str, request: Request) -> Response:
         return Response(status_code=200)
 
     body = await request.body()
+    content_type = request.headers.get("content-type", "")
+    # Strip content-length from upstream; re-add the real body size for multipart so FastAPI
+    # on the downstream service can correctly parse form boundaries.
     headers = {k: v for k, v in request.headers.items() if k.lower() not in ("host", "content-length")}
-    logger.info(f"🔀 [GATEWAY PROXY] {request.method} -> {target_url} | Content-Type: {request.headers.get('content-type')} | Body Bytes: {len(body)}")
+    if body:
+        headers["content-length"] = str(len(body))
+    logger.info(f"🔀 [GATEWAY PROXY] {request.method} -> {target_url} | Content-Type: {content_type} | Body Bytes: {len(body)}")
 
     try:
         client = get_shared_httpx_client()
