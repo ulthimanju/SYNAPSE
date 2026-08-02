@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, File, Path, UploadFile, Request, status
 from shared.schemas import APIResponse
 from shared.auth import get_current_user, AuthenticatedUser
@@ -9,6 +9,15 @@ router = APIRouter(tags=["Documents"])
 
 def get_document_service() -> DocumentService:
     return DocumentService()
+
+def _get_auth_token(request: Request) -> Optional[str]:
+    auth_header = request.headers.get("authorization")
+    if auth_header:
+        return auth_header
+    cookie_token = request.cookies.get("access_token")
+    if cookie_token:
+        return f"Bearer {cookie_token}"
+    return None
 
 @router.post(
     "/workspaces/{workspace_id}/documents",
@@ -22,9 +31,9 @@ async def upload_workspace_document(
     current_user: AuthenticatedUser = Depends(get_current_user),
     service: DocumentService = Depends(get_document_service),
 ) -> APIResponse[DocumentRead]:
-    """Uploads file to MinIO object storage and records document metadata."""
+    """Uploads file to MinIO/Google Drive storage and records document metadata."""
     file_bytes = await file.read()
-    auth_token = request.headers.get("authorization")
+    auth_token = _get_auth_token(request)
     result = await service.upload_document(
         workspace_id=workspace_id,
         uploaded_by=current_user.user_id,
@@ -53,7 +62,7 @@ async def delete_document(
     service: DocumentService = Depends(get_document_service),
 ) -> APIResponse[dict]:
     """Deletes a document metadata record and removes file from Google Drive."""
-    auth_token = request.headers.get("authorization")
+    auth_token = _get_auth_token(request)
     await service.delete_document(document_id=document_id, user_id=current_user.user_id, auth_token=auth_token)
     return APIResponse(message="Document deleted successfully.", data={"id": document_id})
 
@@ -66,7 +75,7 @@ async def retry_workspace_document_processing(
     service: DocumentService = Depends(get_document_service),
 ) -> APIResponse[DocumentRead]:
     """Restarts background parsing, chunking, and embedding pipeline for a failed document."""
-    auth_token = request.headers.get("authorization")
+    auth_token = _get_auth_token(request)
     result = await service.retry_document_processing(
         document_id=document_id,
         workspace_id=workspace_id,
@@ -83,7 +92,7 @@ async def retry_document_processing(
     service: DocumentService = Depends(get_document_service),
 ) -> APIResponse[DocumentRead]:
     """Restarts background parsing, chunking, and embedding pipeline for a failed document."""
-    auth_token = request.headers.get("authorization")
+    auth_token = _get_auth_token(request)
     result = await service.retry_document_processing(
         document_id=document_id,
         workspace_id="",

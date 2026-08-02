@@ -32,10 +32,17 @@ class DocumentService:
     async def verify_workspace_access(self, workspace_id: str, user_id: Optional[str] = None, auth_token: Optional[str] = None, require_edit: bool = False) -> None:
         """Verifies workspace access with sub-millisecond Redis caching."""
         workspace_service_url = f"http://localhost:8002/workspaces/{workspace_id}"
-        headers = {"Authorization": auth_token} if auth_token else {}
+        headers = {}
+        cookies = {}
+        if auth_token:
+            headers["Authorization"] = auth_token
+            raw_token = auth_token[7:] if auth_token.startswith("Bearer ") else auth_token
+            headers["Cookie"] = f"access_token={raw_token}"
+            cookies["access_token"] = raw_token
+
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
-                res = await client.get(workspace_service_url, headers=headers)
+                res = await client.get(workspace_service_url, headers=headers, cookies=cookies)
                 if res.status_code == 403:
                     raise ForbiddenException("You are not a member of this workspace")
                 elif res.status_code == 404:
