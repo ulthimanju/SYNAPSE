@@ -3,7 +3,6 @@ import httpx
 from fastapi import FastAPI, Request, Response, status
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware
 from shared.config.settings import settings
 
 from shared.clients.base import get_shared_httpx_client
@@ -16,8 +15,8 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Enable Gzip compression for payloads > 1000 bytes (reduces Knowledge Graph JSON size by 70%)
-app.add_middleware(GZipMiddleware, minimum_size=1000)
+# NOTE: GZipMiddleware intentionally removed — it consumes the request body stream
+# before proxy_request can read it with request.body(), breaking multipart file uploads.
 
 # Enable CORS for web-app frontend
 app.add_middleware(
