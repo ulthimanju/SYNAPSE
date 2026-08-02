@@ -2,8 +2,8 @@ import { workspaceApi } from '../api/workspaceApi';
 
 /**
  * Standardized Workspace React Query Keys & Lazy-Loaded Query Options.
- * Rule: Tab-level lazy loading — queries are enabled ONLY when their corresponding tab is active.
- * High staleTime (5 mins) guarantees instant loading from cache on tab switches.
+ * Optimization: Adaptive status polling + visibility gating + tab-level lazy loading.
+ * Polling executes ONLY while a document is actively processing AND the document tab is visible.
  */
 export const workspaceQueryKeys = {
   all: (userId) => ['workspaces', userId || 'session'],
@@ -45,10 +45,24 @@ export const workspaceQueries = {
     enabled: !!workspaceId && isTabActive,
     staleTime: 5 * 60 * 1000,
     refetchInterval: (query) => {
+      // 1. Stop polling completely if tab is inactive or workspace unselected
       if (!workspaceId || !isTabActive) return false;
+      // 2. Stop polling if browser tab is hidden/minimized
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return false;
+
+      // 3. Check if any document is actively processing
       const docs = query.state.data || [];
-      const hasProcessing = docs.some((d) => d.status === 'PROCESSING' || d.status === 'PENDING' || d.status === 'processing');
-      return hasProcessing ? 3000 : false;
+      const hasProcessing = docs.some(
+        (d) =>
+          d.status === 'PROCESSING' ||
+          d.status === 'PENDING' ||
+          d.status === 'processing' ||
+          d.status === 'uploaded' ||
+          d.status === 'upload'
+      );
+
+      // Adaptive polling: 4s interval while processing, 0 (stopped) once all ready/failed
+      return hasProcessing ? 4000 : false;
     },
   }),
 
