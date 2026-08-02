@@ -27,14 +27,36 @@ def _get_auth_token(request: Request) -> Optional[str]:
 async def upload_workspace_document(
     request: Request,
     workspace_id: str = Path(..., description="Target Workspace ID"),
-    file: UploadFile = File(..., description="Uploaded file payload"),
+    file: Optional[UploadFile] = File(None),
     current_user: AuthenticatedUser = Depends(get_current_user),
     service: DocumentService = Depends(get_document_service),
 ) -> APIResponse[DocumentRead]:
     """Uploads file to Google Drive storage and records document metadata."""
-    filename = file.filename or "uploaded_file"
-    content_type = file.content_type or "application/octet-stream"
-    file_bytes = await file.read()
+    filename = "uploaded_file"
+    content_type = "application/octet-stream"
+    file_bytes = b""
+
+    # 1. Primary: Standard FastAPI UploadFile parameter
+    if file and file.filename:
+        filename = file.filename
+        content_type = file.content_type or content_type
+        file_bytes = await file.read()
+
+    # 2. Secondary: Direct request.form() iteration to capture any uploaded file field
+    if not file_bytes:
+        try:
+            form = await request.form()
+            for key, val in form.items():
+                if hasattr(val, "filename") and val.filename:
+                    filename = val.filename
+                    content_type = getattr(val, "content_type", content_type)
+                    file_bytes = await val.read()
+                    break
+        except Exception:
+            pass
+
+    if not file_bytes:
+        raise BadRequestException("No file payload received. Please select a valid file to upload.")
 
     auth_token = _get_auth_token(request)
     result = await service.upload_document(
