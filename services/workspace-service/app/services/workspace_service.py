@@ -97,6 +97,7 @@ class WorkspaceService:
             mem = mem_map.get(str(ws.id))
             is_owner = (ws.owner_id == user_id) or (mem and mem.role == "owner")
             role = "owner" if is_owner else (mem.role if mem else "collaborator")
+            can_edit = is_owner or (mem and mem.role in ("owner", "admin", "editor"))
             results.append(
                 WorkspaceRead(
                     id=str(ws.id),
@@ -106,7 +107,7 @@ class WorkspaceService:
                     is_archived=ws.is_archived,
                     role=role,
                     is_owner=is_owner,
-                    can_edit=is_owner,
+                    can_edit=can_edit,
                     created_at=ws.created_at,
                     updated_at=ws.updated_at,
                 )
@@ -140,6 +141,8 @@ class WorkspaceService:
 
         role = "owner" if is_owner else (membership.role if membership else "collaborator")
 
+        can_edit = is_owner or (membership and membership.role in ("owner", "admin", "editor"))
+
         result = WorkspaceRead(
             id=str(workspace.id),
             name=workspace.name,
@@ -148,7 +151,7 @@ class WorkspaceService:
             is_archived=workspace.is_archived,
             role=role,
             is_owner=is_owner,
-            can_edit=is_owner,
+            can_edit=can_edit,
             created_at=workspace.created_at,
             updated_at=workspace.updated_at,
         )

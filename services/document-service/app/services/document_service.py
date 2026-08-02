@@ -29,14 +29,8 @@ class DocumentService:
         self.storage = storage_service or GoogleDriveStorageService()
         self.publisher = publisher or EventPublisher()
 
-    async def verify_workspace_access(self, workspace_id: str, user_id: Optional[str] = None, auth_token: Optional[str] = None) -> None:
+    async def verify_workspace_access(self, workspace_id: str, user_id: Optional[str] = None, auth_token: Optional[str] = None, require_edit: bool = False) -> None:
         """Verifies workspace access with sub-millisecond Redis caching."""
-        if user_id:
-            cache_key = CacheKeys.workspace_access(workspace_id, user_id)
-            cached_status = await redis_cache_manager.get_cache(cache_key)
-            if cached_status == "1":
-                return
-
         workspace_service_url = f"http://localhost:8002/workspaces/{workspace_id}"
         headers = {"Authorization": auth_token} if auth_token else {}
         try:
@@ -46,8 +40,12 @@ class DocumentService:
                     raise ForbiddenException("You are not a member of this workspace")
                 elif res.status_code == 404:
                     raise NotFoundException("Target workspace not found")
-                elif res.status_code == 200 and user_id:
-                    await redis_cache_manager.set_cache(CacheKeys.workspace_access(workspace_id, user_id), "1", ttl_seconds=300)
+                elif res.status_code == 200:
+                    data = res.json().get("data", {})
+                    if require_edit and not data.get("can_edit", False):
+                        raise ForbiddenException("Read-only members (viewers) cannot upload or edit documents in this workspace")
+                    if user_id:
+                        await redis_cache_manager.set_cache(CacheKeys.workspace_access(workspace_id, user_id), "1", ttl_seconds=300)
         except (NotFoundException, ForbiddenException):
             raise
         except Exception:
@@ -67,8 +65,8 @@ class DocumentService:
         if not file_bytes:
             raise BadRequestException("Cannot upload empty file")
 
-        # 1. Verify workspace access via REST call to Workspace Service (cached in Redis)
-        await self.verify_workspace_access(workspace_id=workspace_id, user_id=uploaded_by, auth_token=auth_token)
+        # 1. Verify workspace edit access via REST call to Workspace Service
+        await self.verify_workspace_access(workspace_id=workspace_id, user_id=uploaded_by, auth_token=auth_token, require_edit=True)
 
         # 2. Upload file to user Google Drive inside folder workspace_id
         storage_key = await self.storage.upload_file(
