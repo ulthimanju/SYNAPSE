@@ -93,11 +93,13 @@ async def route_auth(request: Request, path: str = ""):
     return await proxy_request(target, request)
 
 # ─────────────────────────────────────────────────────────
-# Document Service Routes — /workspaces/{id}/documents/*
-# IMPORTANT: these MUST be declared BEFORE the workspace
-# catch-all route so FastAPI matches them first.
-# document-service owns all /workspaces/*/documents paths.
+# Document Service Workspace Routes — /workspaces/{id}/documents/*
+# IMPORTANT: Must be declared BEFORE general /workspaces route.
 # ─────────────────────────────────────────────────────────
+@app.api_route("/api/v1/workspaces/{workspace_id}/documents", methods=["GET", "POST", "OPTIONS"])
+@app.api_route("/api/v1/workspaces/{workspace_id}/documents/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
+@app.api_route("/api/workspaces/{workspace_id}/documents", methods=["GET", "POST", "OPTIONS"])
+@app.api_route("/api/workspaces/{workspace_id}/documents/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
 @app.api_route("/workspaces/{workspace_id}/documents", methods=["GET", "POST", "OPTIONS"])
 @app.api_route("/workspaces/{workspace_id}/documents/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
 async def route_workspace_documents(request: Request, workspace_id: str, path: str = ""):
@@ -136,13 +138,16 @@ async def route_documents(request: Request, path: str = ""):
     return await proxy_request(target, request)
 
 # ─────────────────────────────────────────────────────────
-# RAG Service Routes  →  rag-service:8004
+# RAG Service Routes  →  rag-service:8005
 # ─────────────────────────────────────────────────────────
+@app.api_route("/api/v1/retrieve", methods=["POST", "OPTIONS"])
 @app.api_route("/retrieve", methods=["POST", "OPTIONS"])
 async def route_retrieve(request: Request):
     target = f"{settings.rag_service_url}/retrieve"
     return await proxy_request(target, request)
 
+@app.api_route("/api/v1/chat/{path:path}", methods=["GET", "POST", "DELETE", "OPTIONS"])
+@app.api_route("/api/v1/chat", methods=["GET", "POST", "DELETE", "OPTIONS"])
 @app.api_route("/chat/{path:path}", methods=["GET", "POST", "DELETE", "OPTIONS"])
 @app.api_route("/chat", methods=["GET", "POST", "DELETE", "OPTIONS"])
 async def route_chat(request: Request, path: str = ""):
