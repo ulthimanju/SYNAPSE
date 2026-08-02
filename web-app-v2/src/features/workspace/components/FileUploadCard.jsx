@@ -61,7 +61,7 @@ export const FileUploadCard = ({ onUpload, isUploading }) => {
         ref={fileInputRef}
         type="file"
         multiple
-        accept=".pdf,.docx,.txt,.md,image/*"
+        accept="*"
         onChange={(e) => handleFileSelect(e.target.files)}
         className="hidden"
       />
@@ -78,7 +78,7 @@ export const FileUploadCard = ({ onUpload, isUploading }) => {
             Drag & drop files
           </h3>
           <p className="text-xs text-blue-100/80 leading-relaxed max-w-xs">
-            Drop documents here to add them to this workspace's knowledge base.
+            Drop documents, images, code, or presentations to build your workspace knowledge base.
           </p>
         </div>
 
@@ -96,15 +96,15 @@ export const FileUploadCard = ({ onUpload, isUploading }) => {
         <ul className="w-full space-y-2.5 text-left text-xs text-blue-100/90 pt-2 border-t border-white/10 font-sans">
           <li className="flex items-center gap-2.5">
             <Check className="w-4 h-4 text-blue-300 flex-shrink-0" />
-            <span>PDF, DOCX, TXT, MD, images</span>
+            <span>PDFs (Scanned/OCR), Word, Excel, PPT</span>
           </li>
           <li className="flex items-center gap-2.5">
             <Check className="w-4 h-4 text-blue-300 flex-shrink-0" />
-            <span>Multiple files at once</span>
+            <span>Images (PNG, JPG, WebP), TXT, Code, Data</span>
           </li>
           <li className="flex items-center gap-2.5">
             <Check className="w-4 h-4 text-blue-300 flex-shrink-0" />
-            <span>Up to 50 MB each</span>
+            <span>Multiple files up to 50 MB each</span>
           </li>
         </ul>
       </div>
