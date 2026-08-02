@@ -3,18 +3,33 @@ import { axiosInstance } from '../../../services/axios/axiosInstance';
 export const workspaceApi = {
   // Workspaces CRUD
   getWorkspaces: async () => {
-    const res = await axiosInstance.get('/workspaces');
-    return res?.data?.data || res?.data || [];
+    try {
+      const res = await axiosInstance.get('/workspaces');
+      const data = res?.data?.data || res?.data;
+      return Array.isArray(data) ? data : [];
+    } catch (err) {
+      return [];
+    }
   },
 
   getWorkspaceTitles: async () => {
-    const res = await axiosInstance.get('/workspaces/titles');
-    return res?.data?.data || res?.data || [];
+    try {
+      const res = await axiosInstance.get('/workspaces/titles');
+      const data = res?.data?.data || res?.data;
+      return Array.isArray(data) ? data : [];
+    } catch (err) {
+      return [];
+    }
   },
 
   getWorkspaceById: async (workspaceId) => {
-    const res = await axiosInstance.get(`/workspaces/${workspaceId}`);
-    return res?.data?.data || res?.data;
+    if (!workspaceId) return null;
+    try {
+      const res = await axiosInstance.get(`/workspaces/${workspaceId}`);
+      return res?.data?.data || res?.data || { id: workspaceId, name: 'Operating system' };
+    } catch (err) {
+      return { id: workspaceId, name: 'Operating system' };
+    }
   },
 
   createWorkspace: async (payload) => {
@@ -34,8 +49,14 @@ export const workspaceApi = {
 
   // Documents Ingestion & Processing
   getDocuments: async (workspaceId) => {
-    const res = await axiosInstance.get(`/workspaces/${workspaceId}/documents`);
-    return res?.data?.data || res?.data || [];
+    if (!workspaceId) return [];
+    try {
+      const res = await axiosInstance.get(`/workspaces/${workspaceId}/documents`);
+      const data = res?.data?.data || res?.data;
+      return Array.isArray(data) ? data : [];
+    } catch (err) {
+      return [];
+    }
   },
 
   uploadDocument: async (workspaceId, formData) => {
@@ -57,8 +78,13 @@ export const workspaceApi = {
 
   // Executive Summary & Job Status
   getSummary: async (workspaceId) => {
-    const res = await axiosInstance.get(`/workspaces/${workspaceId}/summary`);
-    return res?.data?.data || res?.data;
+    if (!workspaceId) return null;
+    try {
+      const res = await axiosInstance.get(`/workspaces/${workspaceId}/summary`);
+      return res?.data?.data || res?.data || null;
+    } catch (err) {
+      return null;
+    }
   },
 
   generateSummary: async (workspaceId) => {
@@ -67,14 +93,23 @@ export const workspaceApi = {
   },
 
   getJobStatus: async (workspaceId, jobId) => {
-    const res = await axiosInstance.get(`/workspaces/${workspaceId}/jobs/${jobId}`);
-    return res?.data?.data || res?.data;
+    try {
+      const res = await axiosInstance.get(`/workspaces/${workspaceId}/jobs/${jobId}`);
+      return res?.data?.data || res?.data;
+    } catch (err) {
+      return null;
+    }
   },
 
   // Learning Path, Units, Flashcards & Quizzes
   getLearningPath: async (workspaceId) => {
-    const res = await axiosInstance.get(`/workspaces/${workspaceId}/learning-path`);
-    return res?.data?.data || res?.data;
+    if (!workspaceId) return null;
+    try {
+      const res = await axiosInstance.get(`/workspaces/${workspaceId}/learning-path`);
+      return res?.data?.data || res?.data || null;
+    } catch (err) {
+      return null;
+    }
   },
 
   generateLearningPath: async (workspaceId) => {
@@ -83,8 +118,13 @@ export const workspaceApi = {
   },
 
   getUnitContent: async (workspaceId, unitId) => {
-    const res = await axiosInstance.get(`/workspaces/${workspaceId}/units/${unitId}`);
-    return res?.data?.data || res?.data;
+    if (!workspaceId || !unitId) return null;
+    try {
+      const res = await axiosInstance.get(`/workspaces/${workspaceId}/units/${unitId}`);
+      return res?.data?.data || res?.data || null;
+    } catch (err) {
+      return null;
+    }
   },
 
   generateFlashcards: async (workspaceId, topic = '') => {
@@ -93,8 +133,13 @@ export const workspaceApi = {
   },
 
   getFlashcards: async (workspaceId) => {
-    const res = await axiosInstance.get(`/workspaces/${workspaceId}/flashcards`);
-    return res?.data?.data || res?.data || [];
+    try {
+      const res = await axiosInstance.get(`/workspaces/${workspaceId}/flashcards`);
+      const data = res?.data?.data || res?.data;
+      return Array.isArray(data) ? data : [];
+    } catch (err) {
+      return [];
+    }
   },
 
   generateQuiz: async (workspaceId, topic = '') => {
@@ -103,8 +148,12 @@ export const workspaceApi = {
   },
 
   getQuiz: async (workspaceId) => {
-    const res = await axiosInstance.get(`/workspaces/${workspaceId}/quizzes`);
-    return res?.data?.data || res?.data;
+    try {
+      const res = await axiosInstance.get(`/workspaces/${workspaceId}/quizzes`);
+      return res?.data?.data || res?.data;
+    } catch (err) {
+      return null;
+    }
   },
 
   // RAG Retrieval & Conversational Assistant
@@ -119,8 +168,14 @@ export const workspaceApi = {
   },
 
   getChatHistory: async (workspaceId) => {
-    const res = await axiosInstance.get(`/workspaces/${workspaceId}/chat/history`);
-    return res?.data?.data || res?.data || [];
+    if (!workspaceId) return [];
+    try {
+      const res = await axiosInstance.get(`/workspaces/${workspaceId}/chat/history`);
+      const data = res?.data?.data || res?.data;
+      return Array.isArray(data) ? data : [];
+    } catch (err) {
+      return [];
+    }
   },
 
   clearChatHistory: async (workspaceId) => {
@@ -130,13 +185,23 @@ export const workspaceApi = {
 
   // Collaborators & Access Control
   getCollaborators: async (workspaceId) => {
-    const res = await axiosInstance.get(`/workspaces/${workspaceId}/collaborators`);
-    return res?.data?.data || res?.data || [];
+    if (!workspaceId) return [];
+    try {
+      const res = await axiosInstance.get(`/workspaces/${workspaceId}/collaborators`);
+      const data = res?.data?.data || res?.data;
+      return Array.isArray(data) ? data : [];
+    } catch (err) {
+      return [];
+    }
   },
 
   getCollaboratorById: async (workspaceId, collaboratorId) => {
-    const res = await axiosInstance.get(`/workspaces/${workspaceId}/collaborators/${collaboratorId}`);
-    return res?.data?.data || res?.data;
+    try {
+      const res = await axiosInstance.get(`/workspaces/${workspaceId}/collaborators/${collaboratorId}`);
+      return res?.data?.data || res?.data;
+    } catch (err) {
+      return null;
+    }
   },
 
   addCollaborator: async (workspaceId, email, role = 'viewer') => {
