@@ -6,19 +6,21 @@ import { CreateWorkspaceModal } from '../components/CreateWorkspaceModal';
 
 export const WorkspaceListPage = () => {
   const navigate = useNavigate();
-  const { workspaces, isLoading, createWorkspace, isCreating, deleteWorkspace } = useWorkspaces();
+  const { workspaces = [], isLoading, createWorkspace, isCreating, deleteWorkspace } = useWorkspaces();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const defaultWorkspaces = [
-    {
-      id: 'operating_system',
-      name: 'Operating system',
-      description: 'Core concepts of Process Management, Virtual Memory, Scheduling & File Systems.',
-      document_count: 2,
-    },
-  ];
-
-  const displayWorkspaces = workspaces && workspaces.length > 0 ? workspaces : defaultWorkspaces;
+  const handleCreateSuccess = async (name, description) => {
+    try {
+      const newWs = await createWorkspace({ name, description });
+      const newId = newWs?.id || newWs?._id || newWs?.workspace_id;
+      setIsModalOpen(false);
+      if (newId) {
+        navigate(`/workspaces?workspace=${newId}&tab=documents`);
+      }
+    } catch (err) {
+      console.error('Failed to create workspace:', err);
+    }
+  };
 
   return (
     <div className="w-full max-w-7xl mx-auto p-10 space-y-8 animate-fadeIn">
@@ -45,9 +47,24 @@ export const WorkspaceListPage = () => {
             <div key={i} className="h-48 rounded-3xl bg-white border border-slate-200 animate-pulse" />
           ))}
         </div>
+      ) : workspaces.length === 0 ? (
+        <div className="p-16 text-center rounded-3xl bg-white border border-slate-200 space-y-4 shadow-sm">
+          <Folder className="w-12 h-12 text-slate-300 mx-auto" />
+          <p className="text-slate-800 font-bold text-base">No Workspaces Found</p>
+          <p className="text-slate-400 text-xs max-w-sm mx-auto">
+            Get started by creating your first workspace to upload study materials, generate AI summaries, and build learning paths.
+          </p>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition cursor-pointer shadow-md"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create Workspace</span>
+          </button>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {displayWorkspaces.map((ws, idx) => {
+          {workspaces.map((ws, idx) => {
             const wsId = ws.id || ws._id || ws.workspace_id || `ws-${idx}`;
             return (
               <div
@@ -103,7 +120,7 @@ export const WorkspaceListPage = () => {
       <CreateWorkspaceModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onCreate={createWorkspace}
+        onCreate={handleCreateSuccess}
         isCreating={isCreating}
       />
     </div>
