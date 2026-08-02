@@ -27,18 +27,40 @@ def _get_auth_token(request: Request) -> Optional[str]:
 async def upload_workspace_document(
     request: Request,
     workspace_id: str = Path(..., description="Target Workspace ID"),
-    file: UploadFile = File(..., description="File payload to upload"),
+    file: Optional[UploadFile] = File(None),
     current_user: AuthenticatedUser = Depends(get_current_user),
     service: DocumentService = Depends(get_document_service),
 ) -> APIResponse[DocumentRead]:
     """Uploads file to MinIO/Google Drive storage and records document metadata."""
-    file_bytes = await file.read()
+    filename = "uploaded_file"
+    content_type = "application/octet-stream"
+    file_bytes = b""
+
+    if file:
+        filename = file.filename or filename
+        content_type = file.content_type or content_type
+        file_bytes = await file.read()
+
+    if not file_bytes:
+        try:
+            form = await request.form()
+            form_file = form.get("file")
+            if form_file and hasattr(form_file, "filename"):
+                filename = form_file.filename or filename
+                content_type = getattr(form_file, "content_type", content_type)
+                file_bytes = await form_file.read()
+        except Exception:
+            pass
+
+    if not file_bytes:
+        file_bytes = await request.body()
+
     auth_token = _get_auth_token(request)
     result = await service.upload_document(
         workspace_id=workspace_id,
         uploaded_by=current_user.user_id,
-        filename=file.filename or "file",
-        content_type=file.content_type or "application/octet-stream",
+        filename=filename,
+        content_type=content_type,
         file_bytes=file_bytes,
         auth_token=auth_token
     )

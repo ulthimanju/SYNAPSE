@@ -44,6 +44,7 @@ async def proxy_request(target_url: str, request: Request) -> Response:
 
     body = await request.body()
     headers = {k: v for k, v in request.headers.items() if k.lower() not in ("host", "content-length")}
+    logger.info(f"🔀 [GATEWAY PROXY] {request.method} -> {target_url} | Content-Type: {request.headers.get('content-type')} | Body Bytes: {len(body)}")
 
     try:
         client = get_shared_httpx_client()
