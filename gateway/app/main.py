@@ -43,7 +43,7 @@ async def proxy_request(target_url: str, request: Request) -> Response:
         return Response(status_code=200)
 
     body = await request.body()
-    headers = {k: v for k, v in request.headers.items() if k.lower() != "host"}
+    headers = {k: v for k, v in request.headers.items() if k.lower() not in ("host", "content-length")}
 
     try:
         client = get_shared_httpx_client()

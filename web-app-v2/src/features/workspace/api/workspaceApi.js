@@ -71,9 +71,7 @@ export const workspaceApi = {
 
   uploadDocument: async (workspaceId, formData) => {
     if (!workspaceId) throw new Error('workspaceId is required');
-    const res = await axiosInstance.post(`/workspaces/${workspaceId}/documents`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const res = await axiosInstance.post(`/workspaces/${workspaceId}/documents`, formData);
     return res?.data?.data || res?.data;
   },
 
