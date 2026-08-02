@@ -32,30 +32,33 @@ export const MainLayout = () => {
 
           {/* Navigation Icons */}
           <nav className="flex flex-col items-center gap-4">
+            {/* Workspace Grid / Home */}
             <Link
               to="/workspaces"
               className={`w-10 h-10 rounded-xl flex items-center justify-center transition cursor-pointer ${
-                location.pathname === '/workspaces'
+                location.pathname === '/workspaces' && !location.search.includes('workspace=')
                   ? 'bg-white/10 text-white border border-white/20 shadow-inner'
                   : 'text-blue-200/70 hover:text-white hover:bg-white/5'
               }`}
-              title="All Workspaces Grid"
+              title="All Workspaces"
             >
               <LayoutGrid className="w-5 h-5" />
             </Link>
 
+            {/* Active Workspace */}
             <Link
-              to="/workspaces"
+              to={location.search.includes('workspace=') ? `/workspaces${location.search}` : '/workspaces'}
               className={`w-10 h-10 rounded-xl flex items-center justify-center transition cursor-pointer ${
-                location.pathname.startsWith('/workspaces')
+                location.search.includes('workspace=')
                   ? 'bg-white/15 text-white border border-white/20 shadow-inner'
                   : 'text-blue-200/70 hover:text-white hover:bg-white/5'
               }`}
-              title="Active Workspaces"
+              title="Active Workspace"
             >
               <Folder className="w-5 h-5" />
             </Link>
           </nav>
+
         </div>
 
         {/* Bottom User Avatar & Logout */}

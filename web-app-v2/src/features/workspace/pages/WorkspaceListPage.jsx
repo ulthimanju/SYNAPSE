@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useWorkspaces } from '../hooks/useWorkspaces';
 import { Folder, Plus, Trash2, ArrowRight } from 'lucide-react';
 import { CreateWorkspaceModal } from '../components/CreateWorkspaceModal';
+import { toast } from 'sonner';
 
 export const WorkspaceListPage = () => {
   const navigate = useNavigate();
@@ -81,9 +82,15 @@ export const WorkspaceListPage = () => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (confirm(`Are you sure you want to delete '${ws.name}'?`)) {
-                          deleteWorkspace(wsId);
-                        }
+                        toast.warning(`Delete "${ws.name}"?`, {
+                          description: 'This will permanently remove the workspace and all its documents.',
+                          duration: 8000,
+                          action: {
+                            label: 'Delete',
+                            onClick: () => deleteWorkspace(wsId),
+                          },
+                          cancel: { label: 'Cancel' },
+                        });
                       }}
                       className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer opacity-0 group-hover:opacity-100"
                       title="Delete Workspace"

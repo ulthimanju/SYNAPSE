@@ -2,7 +2,7 @@ import { workspaceApi } from '../api/workspaceApi';
 
 /**
  * Standardized Workspace React Query Keys & Lazy-Loaded Query Options.
- * Optimization: Adaptive status polling + visibility gating + tab-level lazy loading.
+ * staleTime is inherited from global QueryClient default (5 min).
  * Polling executes ONLY while a document is actively processing AND the document tab is visible.
  */
 export const workspaceQueryKeys = {
@@ -23,27 +23,23 @@ export const workspaceQueries = {
   list: (userId) => ({
     queryKey: workspaceQueryKeys.all(userId),
     queryFn: ({ signal }) => workspaceApi.getWorkspaces(signal),
-    staleTime: 5 * 60 * 1000,
   }),
 
   titles: (userId) => ({
     queryKey: workspaceQueryKeys.titles(userId),
     queryFn: ({ signal }) => workspaceApi.getWorkspaceTitles(signal),
-    staleTime: 5 * 60 * 1000,
   }),
 
   detail: (userId, workspaceId) => ({
     queryKey: workspaceQueryKeys.detail(userId, workspaceId),
     queryFn: ({ signal }) => workspaceApi.getWorkspaceById(workspaceId, signal),
     enabled: !!workspaceId,
-    staleTime: 5 * 60 * 1000,
   }),
 
   documents: (userId, workspaceId, isTabActive = true) => ({
     queryKey: workspaceQueryKeys.documents(userId, workspaceId),
     queryFn: ({ signal }) => workspaceApi.getDocuments(workspaceId, signal),
     enabled: !!workspaceId && isTabActive,
-    staleTime: 5 * 60 * 1000,
     refetchInterval: (query) => {
       // 1. Stop polling completely if tab is inactive or workspace unselected
       if (!workspaceId || !isTabActive) return false;
@@ -61,7 +57,7 @@ export const workspaceQueries = {
           d.status === 'upload'
       );
 
-      // Adaptive polling: 4s interval while processing, 0 (stopped) once all ready/failed
+      // Adaptive polling: 4s interval while processing, stopped once all ready/failed
       return hasProcessing ? 4000 : false;
     },
   }),
@@ -70,7 +66,6 @@ export const workspaceQueries = {
     queryKey: workspaceQueryKeys.summary(userId, workspaceId),
     queryFn: ({ signal }) => workspaceApi.getSummary(workspaceId, signal),
     enabled: !!workspaceId && isTabActive,
-    staleTime: 5 * 60 * 1000,
     retry: false,
   }),
 
@@ -78,7 +73,6 @@ export const workspaceQueries = {
     queryKey: workspaceQueryKeys.learningPath(userId, workspaceId),
     queryFn: ({ signal }) => workspaceApi.getLearningPath(workspaceId, signal),
     enabled: !!workspaceId && isTabActive,
-    staleTime: 5 * 60 * 1000,
     retry: false,
   }),
 
@@ -86,34 +80,30 @@ export const workspaceQueries = {
     queryKey: workspaceQueryKeys.unitContent(userId, workspaceId, unitId),
     queryFn: ({ signal }) => workspaceApi.getUnitContent(workspaceId, unitId, signal),
     enabled: !!workspaceId && !!unitId && isTabActive,
-    staleTime: 5 * 60 * 1000,
   }),
 
   flashcards: (userId, workspaceId, isTabActive = true) => ({
     queryKey: workspaceQueryKeys.flashcards(userId, workspaceId),
     queryFn: ({ signal }) => workspaceApi.getFlashcards(workspaceId, signal),
     enabled: !!workspaceId && isTabActive,
-    staleTime: 5 * 60 * 1000,
   }),
 
   quiz: (userId, workspaceId, isTabActive = true) => ({
     queryKey: workspaceQueryKeys.quiz(userId, workspaceId),
     queryFn: ({ signal }) => workspaceApi.getQuiz(workspaceId, signal),
     enabled: !!workspaceId && isTabActive,
-    staleTime: 5 * 60 * 1000,
   }),
 
   chatHistory: (userId, workspaceId, isTabActive = true) => ({
     queryKey: workspaceQueryKeys.chatHistory(userId, workspaceId),
     queryFn: ({ signal }) => workspaceApi.getChatHistory(workspaceId, signal),
     enabled: !!workspaceId && isTabActive,
-    staleTime: 5 * 60 * 1000,
   }),
 
   collaborators: (userId, workspaceId, isTabActive = true) => ({
     queryKey: workspaceQueryKeys.collaborators(userId, workspaceId),
     queryFn: ({ signal }) => workspaceApi.getCollaborators(workspaceId, signal),
     enabled: !!workspaceId && isTabActive,
-    staleTime: 5 * 60 * 1000,
   }),
 };
+

@@ -13,18 +13,28 @@ import { DashboardPage } from './pages/DashboardPage';
 
 import './index.css';
 
+// Apply saved theme class BEFORE React renders to prevent flash-of-wrong-theme
+(function applyTheme() {
+  const saved = localStorage.getItem('synapse_theme');
+  if (saved === 'dark') document.documentElement.classList.add('dark');
+  else document.documentElement.classList.remove('dark');
+})();
+
 import { WorkspaceListPage } from './features/workspace/pages/WorkspaceListPage';
 import { WorkspaceDetailPage } from './features/workspace/pages/WorkspaceDetailPage';
 
 import { WorkspaceProvider } from './features/workspace/context/WorkspaceContext';
 
 // Initialize TanStack Query Client
+// refetchOnWindowFocus=false prevents request storms when Alt+Tabbing back.
+// staleTime=5min is the global default; per-query overrides only where needed.
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000,
+      gcTime: 10 * 60 * 1000,
       retry: 1,
-      refetchOnWindowFocus: true,
+      refetchOnWindowFocus: false,
     },
   },
 });

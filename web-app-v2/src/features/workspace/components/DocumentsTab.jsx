@@ -91,9 +91,9 @@ export const DocumentsTab = ({ documents = [], onUpload, onDelete, onRetry, isLo
                   <div className="flex items-center gap-4 flex-shrink-0 ml-4">
                     {/* Status Badge */}
                     {isProcessed && (
-                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
                         <Check className="w-4 h-4" />
-                        <span>Uploaded</span>
+                        <span>Ready</span>
                       </span>
                     )}
 

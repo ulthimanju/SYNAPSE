@@ -47,7 +47,8 @@ export const WorkspaceDetailPage = () => {
   const isSummaryTabActive = !!workspaceId && activeTab === 'summary';
   const isLpTabActive = !!workspaceId && activeTab === 'learning-path';
   const isChatTabActive = !!workspaceId && activeTab === 'chat';
-  const isCollabTabActive = !!workspaceId && (activeTab === 'collaborators' || activeTab === 'documents');
+  // Fix: collaborators should ONLY load on the collaborators tab, not on documents tab
+  const isCollabTabActive = !!workspaceId && activeTab === 'collaborators';
 
   const {
     documents,

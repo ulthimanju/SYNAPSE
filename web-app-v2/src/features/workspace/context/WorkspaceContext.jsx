@@ -34,8 +34,13 @@ export const WorkspaceProvider = ({ children }) => {
     }
     abortControllerRef.current = new AbortController();
 
-    // Cancel all running React Query queries for previous workspace
-    queryClient.cancelQueries();
+    // Cancel only workspace-scoped React Query queries, NOT global auth/session queries
+    queryClient.cancelQueries({ queryKey: ['workspace'] });
+    queryClient.cancelQueries({ queryKey: ['documents'] });
+    queryClient.cancelQueries({ queryKey: ['summary'] });
+    queryClient.cancelQueries({ queryKey: ['learning-path'] });
+    queryClient.cancelQueries({ queryKey: ['chat-history'] });
+    queryClient.cancelQueries({ queryKey: ['collaborators'] });
 
     return () => {
       if (abortControllerRef.current) {

@@ -13,7 +13,7 @@ export const FileUploadCard = ({ onUpload, isUploading }) => {
       const file = files[i];
 
       if (file.size > 50 * 1024 * 1024) {
-        toast.error(`File '${file.name}' exceeds 50MB limit.`);
+        toast.error(`'${file.name}' exceeds the 50 MB size limit.`);
         continue;
       }
 
@@ -22,12 +22,21 @@ export const FileUploadCard = ({ onUpload, isUploading }) => {
 
       try {
         await onUpload(formData);
-        toast.success(`Uploaded '${file.name}' successfully! Ingestion started.`);
+        toast.success(`'${file.name}' uploaded — ingestion started.`);
       } catch (err) {
-        toast.error(`Failed to upload '${file.name}'.`);
+        // Extract specific server-side error message when available
+        const serverMsg =
+          err?.response?.data?.error?.message ||
+          err?.response?.data?.message ||
+          err?.message;
+        const displayMsg = serverMsg
+          ? `Upload failed: ${serverMsg}`
+          : `Failed to upload '${file.name}'. Please try again.`;
+        toast.error(displayMsg, { duration: 6000 });
       }
     }
   };
+
 
   return (
     <div
