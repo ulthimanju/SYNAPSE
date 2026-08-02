@@ -15,6 +15,7 @@ import { RagChatTab } from '../components/RagChatTab';
 import { CollaboratorsTab } from '../components/CollaboratorsTab';
 import { SwitchWorkspaceModal } from '../components/SwitchWorkspaceModal';
 import { CreateWorkspaceModal } from '../components/CreateWorkspaceModal';
+import { WorkspaceListPage } from './WorkspaceListPage';
 
 export const WorkspaceDetailPage = () => {
   // 1. Read single source of truth from Workspace Context (URL-driven)
@@ -22,13 +23,17 @@ export const WorkspaceDetailPage = () => {
     workspaceId,
     activeTab,
     currentWorkspace,
-    isWorkspaceLoading,
     workspaces,
     switchWorkspace,
     setActiveTab,
   } = useWorkspace();
 
-  // 2. Workspace-Scoped UI State (Resets on workspace change)
+  // 2. If NO workspace query parameter is present in URL (/workspaces), render Workspace Grid List!
+  if (!workspaceId) {
+    return <WorkspaceListPage />;
+  }
+
+  // 3. Workspace-Scoped UI State (Resets on workspace change)
   const [selectedUnitId, setSelectedUnitId] = useState(null);
   const [isSwitchModalOpen, setIsSwitchModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -40,7 +45,7 @@ export const WorkspaceDetailPage = () => {
     setIsCreateModalOpen(false);
   }, [workspaceId]);
 
-  // 3. Workspace-Scoped Data Fetching Hooks
+  // 4. Workspace-Scoped Data Fetching Hooks
   const { createWorkspace, isCreating } = useWorkspaces();
   const { documents, uploadDocument, deleteDocument, retryDocument, isUploading, isDeleting } = useDocuments(workspaceId);
   const { summary, isLoading: isSummaryLoading, generateSummary, isGenerating: isGeneratingSummary } = useSummary(workspaceId);

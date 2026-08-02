@@ -52,7 +52,7 @@ export const WorkspaceListPage = () => {
             return (
               <div
                 key={wsId}
-                onClick={() => navigate(`/workspaces/${wsId}`)}
+                onClick={() => navigate(`/workspaces?workspace=${wsId}&tab=documents`)}
                 className="p-6 rounded-3xl bg-white border border-slate-200 hover:border-blue-500/50 transition duration-300 shadow-sm hover:shadow-md cursor-pointer flex flex-col justify-between group"
               >
                 <div className="space-y-4">

@@ -1,41 +1,23 @@
-import React, { createContext, useContext, useEffect, useRef, useMemo } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import React, { createContext, useContext, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
-import { workspaceQueries, workspaceQueryKeys } from '../queries/workspaceQueries';
-import { workspaceApi } from '../api/workspaceApi';
+import { workspaceQueries } from '../queries/workspaceQueries';
 
 const WorkspaceContext = createContext(null);
 
 export const WorkspaceProvider = ({ children }) => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   // 1. Single Source of Truth: URL Query Parameters
-  const rawWorkspaceId = searchParams.get('workspace');
+  const workspaceId = searchParams.get('workspace');
   const activeTab = searchParams.get('tab') || 'documents';
 
   // AbortController ref for canceling in-flight HTTP requests when switching workspaces
   const abortControllerRef = useRef(null);
 
-  // 2. Fetch list of available workspaces to default if no query param is present
+  // 2. Fetch list of available workspaces
   const { data: workspaces = [] } = useQuery(workspaceQueries.list());
-
-  // Default workspace ID if missing from URL
-  const workspaceId = useMemo(() => {
-    if (rawWorkspaceId) return rawWorkspaceId;
-    if (workspaces.length > 0) {
-      return workspaces[0].id || workspaces[0]._id || workspaces[0].workspace_id;
-    }
-    return 'operating_system'; // Fallback default workspace
-  }, [rawWorkspaceId, workspaces]);
-
-  // Synchronize URL if workspace param was missing
-  useEffect(() => {
-    if (!rawWorkspaceId && workspaceId) {
-      setSearchParams({ workspace: workspaceId, tab: activeTab }, { replace: true });
-    }
-  }, [rawWorkspaceId, workspaceId, activeTab, setSearchParams]);
 
   // 3. Workspace Switch Handler & Request Isolation Engine
   useEffect(() => {
@@ -50,7 +32,6 @@ export const WorkspaceProvider = ({ children }) => {
     // Cancel all running React Query queries for previous workspace
     queryClient.cancelQueries();
 
-    // Clean up on unmount
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort('Component unmounted');
@@ -58,19 +39,23 @@ export const WorkspaceProvider = ({ children }) => {
     };
   }, [workspaceId, queryClient]);
 
-  // 4. Fetch Active Workspace Details (Workspace-Scoped)
-  const { data: currentWorkspace, isLoading: isWorkspaceLoading } = useQuery(
+  // 4. Fetch Active Workspace Details (Workspace-Scoped if workspaceId present)
+  const { data: fetchedWorkspace, isLoading: isWorkspaceLoading } = useQuery(
     workspaceQueries.detail(workspaceId)
   );
 
+  const currentWorkspace = workspaceId
+    ? fetchedWorkspace || { id: workspaceId, name: 'Operating system' }
+    : null;
+
   // 5. Actions for switching workspace while preserving active tab & updating URL
   const switchWorkspace = (newWorkspaceId) => {
-    if (!newWorkspaceId || newWorkspaceId === workspaceId) return;
+    if (!newWorkspaceId) return;
     setSearchParams({ workspace: newWorkspaceId, tab: activeTab });
   };
 
   const setActiveTab = (newTab) => {
-    if (!newTab || newTab === activeTab) return;
+    if (!newTab || !workspaceId) return;
     setSearchParams({ workspace: workspaceId, tab: newTab });
   };
 
@@ -79,7 +64,7 @@ export const WorkspaceProvider = ({ children }) => {
   const value = {
     workspaceId,
     activeTab,
-    currentWorkspace: currentWorkspace || { id: workspaceId, name: 'Operating system' },
+    currentWorkspace,
     isWorkspaceLoading,
     workspaces,
     switchWorkspace,
