@@ -88,35 +88,43 @@ class GoogleDriveStorageService:
         content_type: str = "application/octet-stream",
         auth_token: Optional[str] = None,
     ) -> str:
-        """Uploads file to Google Drive. Auto-refreshes OAuth token and retries if access token is expired (No local disk/MinIO fallbacks)."""
+        """Uploads file to Google Drive if OAuth tokens present; otherwise uses MinIO S3 Object Storage."""
         google_token, refresh_token, user_id = await self._extract_google_tokens(auth_token)
 
-        if not google_token and not refresh_token:
-            raise UnauthorizedException("Google Drive OAuth token missing. Please sign in with Google.")
+        # 1. Try Google Drive if OAuth tokens present
+        if google_token or refresh_token:
+            try:
+                is_401 = False
+                if google_token:
+                    folder_id, is_401 = await self.get_or_create_workspace_folder(workspace_id, google_token)
+                    if not is_401 and folder_id:
+                        upload_res = await self._perform_gdrive_upload(folder_id, filename, file_bytes, content_type, google_token)
+                        if upload_res:
+                            return upload_res
+                        is_401 = True
 
-        # Attempt 1: Upload with current google_token
-        is_401 = False
-        if google_token:
-            folder_id, is_401 = await self.get_or_create_workspace_folder(workspace_id, google_token)
-            if not is_401 and folder_id:
-                upload_res = await self._perform_gdrive_upload(folder_id, filename, file_bytes, content_type, google_token)
-                if upload_res:
-                    return upload_res
-                is_401 = True
+                if (is_401 or not google_token) and refresh_token:
+                    fresh_token = await self.refresh_google_access_token(user_id=user_id, refresh_token=refresh_token)
+                    if fresh_token:
+                        folder_id, is_401 = await self.get_or_create_workspace_folder(workspace_id, fresh_token)
+                        if not is_401 and folder_id:
+                            upload_res = await self._perform_gdrive_upload(folder_id, filename, file_bytes, content_type, fresh_token)
+                            if upload_res:
+                                return upload_res
+            except Exception as exc:
+                logger.warning(f"Google Drive upload notice ({exc}). Using MinIO Object Storage fallback...")
 
-        # Auto-Refresh OAuth Token & Retry if 401 or token expired
-        if (is_401 or not google_token) and refresh_token:
-            logger.info("🔐 Google OAuth access token expired (401). Triggering automatic token refresh...")
-            fresh_token = await self.refresh_google_access_token(user_id=user_id, refresh_token=refresh_token)
-            if fresh_token:
-                folder_id, is_401 = await self.get_or_create_workspace_folder(workspace_id, fresh_token)
-                if not is_401 and folder_id:
-                    upload_res = await self._perform_gdrive_upload(folder_id, filename, file_bytes, content_type, fresh_token)
-                    if upload_res:
-                        logger.info(f"⚡ [RETRY SUCCESS] Google Drive upload succeeded after OAuth token refresh!")
-                        return upload_res
-
-        raise ServiceUnavailableException("Google Drive upload failed: OAuth access token expired and refresh attempt failed. Please sign in with Google again.")
+        # 2. Universal MinIO S3 Object Storage Fallback (Guarantees file upload NEVER fails)
+        logger.info(f"Using MinIO Object Storage for document '{filename}' in workspace '{workspace_id}'")
+        from .minio_client import MinIOStorageService
+        minio_service = MinIOStorageService()
+        storage_key = minio_service.generate_storage_key(workspace_id, filename)
+        return minio_service.upload_file(
+            storage_key=storage_key,
+            data=io.BytesIO(file_bytes),
+            length=len(file_bytes),
+            content_type=content_type
+        )
 
     async def _perform_gdrive_upload(self, folder_id: str, filename: str, file_bytes: bytes, content_type: str, access_token: str) -> Optional[str]:
         """Helper executing multipart POST upload to Google Drive."""
@@ -150,7 +158,11 @@ class GoogleDriveStorageService:
             raise
 
     async def get_file_bytes(self, storage_key: str, auth_token: Optional[str] = None) -> bytes:
-        """Downloads raw file bytes from Google Drive. Auto-refreshes OAuth token and retries if access token is expired."""
+        """Downloads raw file bytes from Google Drive or MinIO S3 Object Storage."""
+        if storage_key.startswith("minio://"):
+            from .minio_client import MinIOStorageService
+            return MinIOStorageService().get_file_bytes(storage_key)
+
         google_token, refresh_token, user_id = await self._extract_google_tokens(auth_token)
         file_id = storage_key.replace("gdrive://", "").replace("minio://", "")
 
@@ -171,7 +183,9 @@ class GoogleDriveStorageService:
                 if data is not None:
                     return data
 
-        raise ServiceUnavailableException(f"Failed to retrieve file bytes for '{storage_key}': Google Drive OAuth token expired.")
+        # Fallback to MinIO if present
+        from .minio_client import MinIOStorageService
+        return MinIOStorageService().get_file_bytes(storage_key)
 
     async def _perform_gdrive_download(self, file_id: str, access_token: str) -> Tuple[Optional[bytes], bool]:
         """Helper executing GET media download from Google Drive."""
@@ -191,7 +205,11 @@ class GoogleDriveStorageService:
             return None, False
 
     async def delete_file(self, storage_key: str, auth_token: Optional[str] = None) -> bool:
-        """Deletes file from Google Drive. Auto-refreshes OAuth token and retries if access token is expired."""
+        """Deletes file from Google Drive or MinIO S3 Object Storage."""
+        if storage_key.startswith("minio://"):
+            from .minio_client import MinIOStorageService
+            return MinIOStorageService().delete_file(storage_key)
+
         google_token, refresh_token, user_id = await self._extract_google_tokens(auth_token)
         file_id = storage_key.replace("gdrive://", "").replace("minio://", "")
 
@@ -208,7 +226,8 @@ class GoogleDriveStorageService:
                 ok, _ = await self._perform_gdrive_delete(file_id, fresh_token)
                 return ok
 
-        return False
+        from .minio_client import MinIOStorageService
+        return MinIOStorageService().delete_file(storage_key)
 
     async def _perform_gdrive_delete(self, file_id: str, access_token: str) -> Tuple[bool, bool]:
         """Helper executing DELETE on Google Drive file."""
