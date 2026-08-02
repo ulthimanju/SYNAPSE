@@ -47,9 +47,9 @@ export const DocumentsTab = ({ documents = [], onUpload, onDelete, onRetry, isUp
         ) : (
           <div className="space-y-3">
             {documents.map((doc) => {
-              const isProcessed = doc.status === 'PROCESSED' || doc.status === 'COMPLETED' || doc.status === 'SUCCESS';
-              const isFailed = doc.status === 'FAILED' || doc.status === 'ERROR';
-              const isProcessing = doc.status === 'PROCESSING' || doc.status === 'PENDING';
+              const isProcessed = doc.status === 'PROCESSED' || doc.status === 'COMPLETED' || doc.status === 'SUCCESS' || doc.status === 'ready';
+              const isFailed = doc.status === 'FAILED' || doc.status === 'ERROR' || doc.status === 'failed';
+              const isProcessing = doc.status === 'PROCESSING' || doc.status === 'PENDING' || doc.status === 'processing' || doc.status === 'uploaded';
 
               return (
                 <div

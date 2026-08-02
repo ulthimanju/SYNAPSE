@@ -8,7 +8,7 @@ export const LearningPathTab = ({ learningPath, unitContent, isUnitLoading, onSe
   const [flippedCardIdx, setFlippedCardIdx] = useState(null);
   const [selectedAnswers, setSelectedAnswers] = useState({});
 
-  const units = learningPath?.units || learningPath?.knowledge_graph?.nodes || [];
+  const units = learningPath?.units || learningPath?.nodes || learningPath?.knowledge_graph?.nodes || [];
 
   const handleUnitClick = (unitId) => {
     setSelectedUnitId(unitId);
