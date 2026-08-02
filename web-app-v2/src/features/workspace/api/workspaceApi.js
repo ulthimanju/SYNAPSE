@@ -2,6 +2,7 @@ import { axiosInstance } from '../../../services/axios/axiosInstance';
 
 /**
  * Workspace API layer with strict workspaceId parameter requirements and AbortSignal support.
+ * Non-cancelled backend errors propagate to React Query to surface real error states.
  */
 export const workspaceApi = {
   // Workspaces CRUD
@@ -12,7 +13,7 @@ export const workspaceApi = {
       return Array.isArray(data) ? data : [];
     } catch (err) {
       if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return [];
-      return [];
+      throw err;
     }
   },
 
@@ -23,7 +24,7 @@ export const workspaceApi = {
       return Array.isArray(data) ? data : [];
     } catch (err) {
       if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return [];
-      return [];
+      throw err;
     }
   },
 
@@ -31,10 +32,10 @@ export const workspaceApi = {
     if (!workspaceId) return null;
     try {
       const res = await axiosInstance.get(`/workspaces/${workspaceId}`, { signal });
-      return res?.data?.data || res?.data || { id: workspaceId, name: 'Operating system' };
+      return res?.data?.data || res?.data;
     } catch (err) {
       if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return null;
-      return { id: workspaceId, name: 'Operating system' };
+      throw err;
     }
   },
 
@@ -64,7 +65,7 @@ export const workspaceApi = {
       return Array.isArray(data) ? data : [];
     } catch (err) {
       if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return [];
-      return [];
+      throw err;
     }
   },
 
@@ -96,7 +97,8 @@ export const workspaceApi = {
       return res?.data?.data || res?.data || null;
     } catch (err) {
       if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return null;
-      return null;
+      if (err?.response?.status === 404) return null; // No summary generated yet
+      throw err;
     }
   },
 
@@ -112,7 +114,8 @@ export const workspaceApi = {
       const res = await axiosInstance.get(`/workspaces/${workspaceId}/jobs/${jobId}`, { signal });
       return res?.data?.data || res?.data;
     } catch (err) {
-      return null;
+      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return null;
+      throw err;
     }
   },
 
@@ -124,7 +127,8 @@ export const workspaceApi = {
       return res?.data?.data || res?.data || null;
     } catch (err) {
       if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return null;
-      return null;
+      if (err?.response?.status === 404) return null; // No path generated yet
+      throw err;
     }
   },
 
@@ -141,7 +145,7 @@ export const workspaceApi = {
       return res?.data?.data || res?.data || null;
     } catch (err) {
       if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return null;
-      return null;
+      throw err;
     }
   },
 
@@ -158,7 +162,8 @@ export const workspaceApi = {
       const data = res?.data?.data || res?.data;
       return Array.isArray(data) ? data : [];
     } catch (err) {
-      return [];
+      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return [];
+      throw err;
     }
   },
 
@@ -174,7 +179,8 @@ export const workspaceApi = {
       const res = await axiosInstance.get(`/workspaces/${workspaceId}/quizzes`, { signal });
       return res?.data?.data || res?.data;
     } catch (err) {
-      return null;
+      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return null;
+      throw err;
     }
   },
 
@@ -198,7 +204,8 @@ export const workspaceApi = {
       const data = res?.data?.data || res?.data;
       return Array.isArray(data) ? data : [];
     } catch (err) {
-      return [];
+      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return [];
+      throw err;
     }
   },
 
@@ -216,29 +223,14 @@ export const workspaceApi = {
       const data = res?.data?.data || res?.data;
       return Array.isArray(data) ? data : [];
     } catch (err) {
-      return [];
+      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return [];
+      throw err;
     }
   },
 
-  getCollaboratorById: async (workspaceId, collaboratorId, signal = null) => {
-    if (!workspaceId || !collaboratorId) return null;
-    try {
-      const res = await axiosInstance.get(`/workspaces/${workspaceId}/collaborators/${collaboratorId}`, { signal });
-      return res?.data?.data || res?.data;
-    } catch (err) {
-      return null;
-    }
-  },
-
-  addCollaborator: async (workspaceId, email, role = 'viewer') => {
+  addCollaborator: async (workspaceId, email, role = 'collaborator') => {
     if (!workspaceId) throw new Error('workspaceId is required');
     const res = await axiosInstance.post(`/workspaces/${workspaceId}/collaborators`, { email, role });
-    return res?.data?.data || res?.data;
-  },
-
-  updateCollaboratorRole: async (workspaceId, collaboratorId, role) => {
-    if (!workspaceId || !collaboratorId) throw new Error('workspaceId and collaboratorId are required');
-    const res = await axiosInstance.patch(`/workspaces/${workspaceId}/collaborators/${collaboratorId}`, { role });
     return res?.data?.data || res?.data;
   },
 

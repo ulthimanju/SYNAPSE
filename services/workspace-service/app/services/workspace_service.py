@@ -38,6 +38,7 @@ class WorkspaceService:
         workspace = Workspace(
             id=ws_id,
             name=payload.name,
+            description=payload.description,
             owner_id=user_id,
             is_shared=payload.is_shared,
         )
@@ -60,6 +61,7 @@ class WorkspaceService:
         return WorkspaceRead(
             id=str(workspace.id),
             name=workspace.name,
+            description=workspace.description,
             owner_id=workspace.owner_id,
             is_shared=workspace.is_shared,
             is_archived=workspace.is_archived,
@@ -102,6 +104,7 @@ class WorkspaceService:
                 WorkspaceRead(
                     id=str(ws.id),
                     name=ws.name,
+                    description=getattr(ws, "description", None),
                     owner_id=ws.owner_id,
                     is_shared=getattr(ws, "is_shared", False),
                     is_archived=ws.is_archived,
@@ -146,6 +149,7 @@ class WorkspaceService:
         result = WorkspaceRead(
             id=str(workspace.id),
             name=workspace.name,
+            description=getattr(workspace, "description", None),
             owner_id=workspace.owner_id,
             is_shared=getattr(workspace, "is_shared", False),
             is_archived=workspace.is_archived,

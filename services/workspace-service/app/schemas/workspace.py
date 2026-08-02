@@ -5,11 +5,13 @@ from pydantic import BaseModel, Field
 class WorkspaceCreate(BaseModel):
     """Schema for creating a workspace."""
     name: str = Field(..., max_length=255, description="Workspace name")
+    description: Optional[str] = Field(default=None, description="Workspace description")
     is_shared: bool = Field(default=False, description="Shared workspace boolean flag (True = shared, False = private)")
 
 class WorkspaceUpdate(BaseModel):
     """Schema for updating a workspace."""
     name: Optional[str] = Field(default=None, max_length=255)
+    description: Optional[str] = Field(default=None)
     is_shared: Optional[bool] = Field(default=None)
     is_archived: Optional[bool] = Field(default=None)
 
@@ -35,6 +37,7 @@ class WorkspaceRead(BaseModel):
     """Schema for reading workspace payload."""
     id: str
     name: str
+    description: Optional[str] = None
     owner_id: str
     is_shared: bool = False
     is_archived: bool = False

@@ -9,7 +9,7 @@ export const WorkspaceListPage = () => {
   const { workspaces = [], isLoading, createWorkspace, isCreating, deleteWorkspace } = useWorkspaces();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const handleCreateSuccess = async (name, description) => {
+  const handleCreateSuccess = async ({ name, description }) => {
     try {
       const newWs = await createWorkspace({ name, description });
       const newId = newWs?.id || newWs?._id || newWs?.workspace_id;
