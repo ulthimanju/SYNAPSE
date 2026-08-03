@@ -10,6 +10,25 @@ import { Copy, Check } from 'lucide-react';
  * Pre-processes LaTeX math expressions ($...$ and $$...$$) directly into KaTeX HTML.
  */
 /**
+ * Recursively inspects React children nodes so inline math delimiters inside <strong>, <em>, or nested elements are rendered via KaTeX.
+ */
+function processMathInNode(node) {
+  if (typeof node === 'string') {
+    return renderMathText(node);
+  }
+
+  if (React.isValidElement(node)) {
+    const children = node.props?.children;
+    if (!children) return node;
+
+    const processedChildren = React.Children.map(children, (child) => processMathInNode(child));
+    return React.cloneElement(node, {}, processedChildren);
+  }
+
+  return node;
+}
+
+/**
  * Custom renderer for text segments that converts math expressions ($...$, $$...$$, \(...\), \[...\]) into KaTeX HTML elements.
  */
 function renderMathText(text) {
@@ -32,7 +51,7 @@ function renderMathText(text) {
         return (
           <div
             key={idx}
-            className="katex-display-block my-4 overflow-x-auto py-2 text-center"
+            className="katex-display-block my-6 overflow-x-auto py-3 text-center"
             dangerouslySetInnerHTML={{ __html: html }}
           />
         );
@@ -48,7 +67,7 @@ function renderMathText(text) {
         return (
           <span
             key={idx}
-            className="katex-inline"
+            className="katex-inline px-0.5"
             dangerouslySetInnerHTML={{ __html: html }}
           />
         );
@@ -67,32 +86,75 @@ export const MarkdownRenderer = ({ content, dark = false }) => {
   if (!content) return null;
 
   const proseClass = dark
-    ? 'prose prose-invert max-w-none prose-headings:font-sans prose-headings:font-bold prose-headings:text-white prose-p:text-slate-300 prose-p:leading-relaxed prose-li:text-slate-300 prose-code:text-blueprint-300 prose-code:bg-slate-900 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:font-mono'
-    : 'prose max-w-none prose-headings:font-sans prose-headings:font-bold prose-headings:text-slate-900 prose-p:text-slate-700 prose-p:leading-relaxed prose-li:text-slate-700 prose-strong:text-slate-900 prose-code:text-blue-700 prose-code:bg-slate-100 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:font-mono';
+    ? 'prose prose-invert max-w-none font-sans text-slate-300 space-y-4'
+    : 'prose max-w-none font-sans text-slate-700 space-y-4';
 
   return (
     <div className={proseClass}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          // Render plain text nodes and headings with math support
           p({ children }) {
-            return <p>{React.Children.map(children, (child) => (typeof child === 'string' ? renderMathText(child) : child))}</p>;
-          },
-          li({ children }) {
-            return <li>{React.Children.map(children, (child) => (typeof child === 'string' ? renderMathText(child) : child))}</li>;
+            return (
+              <p className="leading-relaxed text-slate-700 font-sans my-3">
+                {React.Children.map(children, (child) => processMathInNode(child))}
+              </p>
+            );
           },
           h1({ children }) {
-            return <h1>{React.Children.map(children, (child) => (typeof child === 'string' ? renderMathText(child) : child))}</h1>;
+            return (
+              <h1 className="text-2xl font-extrabold text-slate-900 font-sans tracking-tight mt-8 mb-4 border-b border-slate-200/80 pb-2">
+                {React.Children.map(children, (child) => processMathInNode(child))}
+              </h1>
+            );
           },
           h2({ children }) {
-            return <h2>{React.Children.map(children, (child) => (typeof child === 'string' ? renderMathText(child) : child))}</h2>;
+            return (
+              <h2 className="text-xl font-bold text-slate-900 font-sans tracking-tight mt-6 mb-3">
+                {React.Children.map(children, (child) => processMathInNode(child))}
+              </h2>
+            );
           },
           h3({ children }) {
-            return <h3>{React.Children.map(children, (child) => (typeof child === 'string' ? renderMathText(child) : child))}</h3>;
+            return (
+              <h3 className="text-lg font-bold text-slate-900 font-sans tracking-tight mt-5 mb-2">
+                {React.Children.map(children, (child) => processMathInNode(child))}
+              </h3>
+            );
           },
           h4({ children }) {
-            return <h4>{React.Children.map(children, (child) => (typeof child === 'string' ? renderMathText(child) : child))}</h4>;
+            return (
+              <h4 className="text-base font-bold text-slate-900 font-sans mt-4 mb-2">
+                {React.Children.map(children, (child) => processMathInNode(child))}
+              </h4>
+            );
+          },
+          ul({ children }) {
+            return <ul className="list-disc list-outside ml-6 space-y-2 my-3 text-slate-700">{children}</ul>;
+          },
+          ol({ children }) {
+            return <ol className="list-decimal list-outside ml-6 space-y-2 my-3 text-slate-700">{children}</ol>;
+          },
+          li({ children }) {
+            return (
+              <li className="leading-relaxed font-sans">
+                {React.Children.map(children, (child) => processMathInNode(child))}
+              </li>
+            );
+          },
+          strong({ children }) {
+            return (
+              <strong className="font-bold text-slate-900">
+                {React.Children.map(children, (child) => processMathInNode(child))}
+              </strong>
+            );
+          },
+          blockquote({ children }) {
+            return (
+              <blockquote className="border-l-4 border-blue-600 pl-4 py-1.5 italic bg-blue-50/50 rounded-r-xl text-slate-700 my-4">
+                {children}
+              </blockquote>
+            );
           },
 
           // Code block with One-Click Copy button
