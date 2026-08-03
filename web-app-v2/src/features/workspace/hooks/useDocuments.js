@@ -13,9 +13,22 @@ export const useDocuments = (workspaceId, isTabActive = true) => {
 
   const uploadMutation = useMutation({
     mutationFn: (formData) => workspaceApi.uploadDocument(workspaceId, formData),
-    // No invalidateQueries here — the SSE stream (useDocumentSSE) handles cache updates
-    // in real-time via snapshot/status events. Calling invalidateQueries would race
-    // against concurrent uploads and cause the second file to disappear from cache.
+    onSuccess: (uploadedDoc) => {
+      // Immediately show the uploaded document in the Documents tab.
+      // SSE (useDocumentSSE) will patch status fields in real-time as the
+      // background worker progresses: uploaded → processing → ready/failed.
+      if (uploadedDoc) {
+        queryClient.setQueryData(
+          workspaceQueryKeys.documents(userId, workspaceId),
+          (old = []) => {
+            const docId = uploadedDoc.id || uploadedDoc._id;
+            // Duplicate guard: SSE snapshot may have already added it
+            const exists = old.some((d) => (d.id || d._id) === docId);
+            return exists ? old : [uploadedDoc, ...old];
+          }
+        );
+      }
+    },
   });
 
 
