@@ -73,19 +73,12 @@ export const SummaryTab = ({ summary, isSummaryGenerated, isLoading, isGeneratin
               </div>
               <div className="space-y-3">
                 {codeExamples.map((ex, idx) => (
-                  <div key={idx} className="rounded-2xl bg-white border border-slate-200 shadow-xs overflow-hidden">
-                    {/* Card header */}
-                    <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-200">
-                      <Code className="w-3.5 h-3.5 text-[#1c3d98]" />
-                      <span className="text-xs font-bold text-[#1c3d98] font-mono">{ex.title}</span>
-                    </div>
-                    <div className="p-3">
-                      <MarkdownRenderer
-                        content={`\`\`\`${ex.language || 'text'}\n${ex.code}\n\`\`\``}
-                        dark={false}
-                      />
-                    </div>
-                  </div>
+                  <MarkdownRenderer
+                    key={idx}
+                    content={`\`\`\`${ex.language || 'text'}\n${ex.code}\n\`\`\``}
+                    dark={false}
+                    codeTitle={ex.title}
+                  />
                 ))}
               </div>
             </div>

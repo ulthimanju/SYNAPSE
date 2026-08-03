@@ -110,7 +110,7 @@ function renderMathText(text) {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export const MarkdownRenderer = ({ content, dark = false }) => {
+export const MarkdownRenderer = ({ content, dark = false, codeTitle = null }) => {
   const [copiedKey, setCopiedKey] = useState(null);
 
   if (!content) return null;
@@ -195,7 +195,6 @@ export const MarkdownRenderer = ({ content, dark = false }) => {
             return <hr className="my-4 border-slate-200" />;
           },
 
-          // ── Code blocks with syntax highlighting + Mermaid support ──
           code({ node, inline, className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || '');
             const lang = match?.[1] || '';
@@ -214,15 +213,34 @@ export const MarkdownRenderer = ({ content, dark = false }) => {
 
               return (
                 <div className={`relative group my-3 rounded-xl overflow-hidden border ${dark ? 'border-slate-700' : 'border-slate-200'} shadow-xs`}>
-                  {/* Header bar */}
+                  {/* 3-column header: lang | title (center) | copy */}
                   <div
-                    className="flex items-center justify-between px-3 py-1.5 text-xs font-mono font-bold"
-                    style={{ background: headerBg, borderBottom: `1px solid ${headerBorder}`, color: headerText }}
+                    className="grid px-3 py-1.5 text-xs font-mono font-bold items-center"
+                    style={{
+                      gridTemplateColumns: '1fr auto 1fr',
+                      background: headerBg,
+                      borderBottom: `1px solid ${headerBorder}`,
+                      color: headerText,
+                    }}
                   >
-                    <span>{lang ? lang.toUpperCase() : 'CODE'}</span>
+                    {/* Left: language label */}
+                    <span className="justify-self-start">{lang ? lang.toUpperCase() : 'CODE'}</span>
+
+                    {/* Center: code title */}
+                    {codeTitle && (
+                      <span
+                        className="justify-self-center text-center font-sans font-semibold truncate max-w-xs px-2"
+                        style={{ color: headerText }}
+                      >
+                        {codeTitle}
+                      </span>
+                    )}
+                    {!codeTitle && <span />}
+
+                    {/* Right: copy button */}
                     <button
                       onClick={() => copy(codeString)}
-                      className="flex items-center gap-1 hover:opacity-70 transition cursor-pointer"
+                      className="justify-self-end flex items-center gap-1 hover:opacity-70 transition cursor-pointer"
                     >
                       {copiedKey === codeString ? (
                         <><Check className="w-3 h-3 text-emerald-600" /><span className="text-emerald-600">Copied</span></>
@@ -232,7 +250,7 @@ export const MarkdownRenderer = ({ content, dark = false }) => {
                     </button>
                   </div>
 
-                  {/* Syntax-highlighted code */}
+                  {/* Syntax-highlighted code — no background */}
                   <SyntaxHighlighter
                     style={hlStyle}
                     language={lang || 'text'}
@@ -242,7 +260,7 @@ export const MarkdownRenderer = ({ content, dark = false }) => {
                       padding: '0.75rem 1rem',
                       fontSize: '0.78rem',
                       lineHeight: '1.6',
-                      background: dark ? '#0f172a' : '#fafbfc',
+                      background: 'transparent',
                       borderRadius: 0,
                     }}
                     codeTagProps={{ style: { fontFamily: "'JetBrains Mono', 'Fira Code', monospace" } }}
