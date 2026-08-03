@@ -14,22 +14,25 @@ export const useDocuments = (workspaceId, isTabActive = true) => {
   const uploadMutation = useMutation({
     mutationFn: (formData) => workspaceApi.uploadDocument(workspaceId, formData),
     onSuccess: (uploadedDoc) => {
-      // Immediately show the uploaded document in the Documents tab.
-      // SSE (useDocumentSSE) will patch status fields in real-time as the
-      // background worker progresses: uploaded → processing → ready/failed.
+      // Optimistically add the doc to cache immediately so it shows in the UI.
       if (uploadedDoc) {
         queryClient.setQueryData(
           workspaceQueryKeys.documents(userId, workspaceId),
           (old = []) => {
             const docId = uploadedDoc.id || uploadedDoc._id;
-            // Duplicate guard: SSE snapshot may have already added it
             const exists = old.some((d) => (d.id || d._id) === docId);
             return exists ? old : [uploadedDoc, ...old];
           }
         );
       }
+      // Also invalidate so React Query re-fetches from server and reconciles
+      // any discrepancy (e.g. SSE snapshot fired before onSuccess ran).
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKeys.documents(userId, workspaceId),
+      });
     },
   });
+
 
 
   const deleteMutation = useMutation({
