@@ -7,10 +7,13 @@ import axios from 'axios';
 export const axiosInstance = axios.create({
   baseURL: '/api/v1',
   withCredentials: true, // Automatically sends & receives HttpOnly Cookies (access_token, refresh_token)
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  // Do NOT set a default Content-Type here.
+  // Axios automatically sets:
+  //   • application/json for plain object payloads
+  //   • multipart/form-data; boundary=... for FormData payloads
+  // A hardcoded default overrides the auto-generated multipart boundary → 422 on file uploads.
 });
+
 
 let isRefreshing = false;
 let failedQueue = [];
