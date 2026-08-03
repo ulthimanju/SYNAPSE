@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, RefreshCw, AlertCircle, Code, Table as TableIcon, FileText } from 'lucide-react';
+import { Sparkles, RefreshCw, AlertCircle, Code, Table as TableIcon } from 'lucide-react';
 import { MarkdownRenderer } from '../../../components/common/MarkdownRenderer';
 
 export const SummaryTab = ({ summary, isSummaryGenerated, isLoading, isGenerating, onGenerate }) => {
@@ -57,10 +57,6 @@ export const SummaryTab = ({ summary, isSummaryGenerated, isLoading, isGeneratin
 
           {/* ── Main Summary ── */}
           <div className="px-6 py-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
-            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100">
-              <FileText className="w-3.5 h-3.5 text-[#1c3d98]" />
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Overview</span>
-            </div>
             <MarkdownRenderer content={overview} dark={false} />
           </div>
 
