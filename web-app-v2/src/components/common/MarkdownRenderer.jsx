@@ -36,24 +36,34 @@ function formatMathInText(rawText) {
   return text;
 }
 
-export const MarkdownRenderer = ({ content }) => {
+export const MarkdownRenderer = ({ content, dark = false }) => {
   const [copiedIndex, setCopiedIndex] = useState(null);
 
   if (!content) return null;
 
   const processedContent = formatMathInText(content);
 
+  const proseClass = dark
+    ? 'prose prose-invert max-w-none prose-headings:font-sans prose-headings:font-bold prose-headings:text-white prose-p:text-slate-300 prose-p:leading-relaxed prose-li:text-slate-300 prose-code:text-blueprint-300 prose-code:bg-slate-900 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:font-mono'
+    : 'prose max-w-none prose-headings:font-sans prose-headings:font-bold prose-headings:text-slate-900 prose-p:text-slate-700 prose-p:leading-relaxed prose-li:text-slate-700 prose-strong:text-slate-900 prose-code:text-blue-700 prose-code:bg-slate-100 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:font-mono';
+
   return (
-    <div className="prose prose-invert max-w-none prose-headings:font-sans prose-headings:font-bold prose-headings:text-white prose-p:text-slate-300 prose-p:leading-relaxed prose-li:text-slate-300 prose-code:text-blueprint-300 prose-code:bg-slate-900 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:font-mono">
+    <div className={proseClass}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          // Direct HTML rendering for pre-processed KaTeX blocks
+          // Direct HTML rendering for pre-processed KaTeX blocks and inline math
           div({ className, children, ...props }) {
             if (className && className.includes('katex-display-block')) {
               return <div className={className} dangerouslySetInnerHTML={{ __html: children }} {...props} />;
             }
             return <div className={className} {...props}>{children}</div>;
+          },
+          span({ className, children, ...props }) {
+            if (className && className.includes('katex')) {
+              return <span className={className} dangerouslySetInnerHTML={{ __html: children }} {...props} />;
+            }
+            return <span className={className} {...props}>{children}</span>;
           },
 
           // Code block with One-Click Copy button
@@ -107,3 +117,4 @@ export const MarkdownRenderer = ({ content }) => {
     </div>
   );
 };
+
