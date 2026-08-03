@@ -9,33 +9,48 @@ export const FileUploadCard = ({ onUpload, isUploading }) => {
   const handleFileSelect = async (files) => {
     if (!files || files.length === 0) return;
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
+    const fileArray = Array.from(files);
 
+    // Validate sizes first — reject oversized files before any upload starts
+    const valid = [];
+    for (const file of fileArray) {
       if (file.size > 50 * 1024 * 1024) {
-        toast.error(`'${file.name}' exceeds the 50 MB size limit.`);
-        continue;
+        toast.error(`'${file.name}' exceeds the 50 MB limit — skipped.`);
+      } else {
+        valid.push(file);
       }
+    }
+    if (valid.length === 0) return;
 
-      const formData = new FormData();
-      formData.append('file', file);
+    // Upload all valid files in parallel — one FormData per file
+    const results = await Promise.allSettled(
+      valid.map((file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return onUpload(formData).then(() => ({ file, ok: true }));
+      })
+    );
 
-      try {
-        await onUpload(formData);
-        toast.success(`'${file.name}' uploaded — ingestion started.`);
-      } catch (err) {
-        // Extract specific server-side error message when available
+    // Show per-file result toasts
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        toast.success(`'${result.value.file.name}' uploaded — ingestion started.`);
+      } else {
+        const err = result.reason;
         const serverMsg =
           err?.response?.data?.error?.message ||
           err?.response?.data?.message ||
           err?.message;
+        const fileName = err?.config?.data?.get?.('file')?.name || 'file';
         const displayMsg = serverMsg
           ? `Upload failed: ${serverMsg}`
-          : `Failed to upload '${file.name}'. Please try again.`;
+          : `Failed to upload '${fileName}'. Please try again.`;
         toast.error(displayMsg, { duration: 6000 });
       }
     }
   };
+
+
 
 
   return (

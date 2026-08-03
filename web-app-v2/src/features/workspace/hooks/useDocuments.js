@@ -13,11 +13,11 @@ export const useDocuments = (workspaceId, isTabActive = true) => {
 
   const uploadMutation = useMutation({
     mutationFn: (formData) => workspaceApi.uploadDocument(workspaceId, formData),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.documents(userId, workspaceId) });
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.detail(userId, workspaceId) });
-    },
+    // No invalidateQueries here — the SSE stream (useDocumentSSE) handles cache updates
+    // in real-time via snapshot/status events. Calling invalidateQueries would race
+    // against concurrent uploads and cause the second file to disappear from cache.
   });
+
 
   const deleteMutation = useMutation({
     mutationFn: (documentId) => workspaceApi.deleteDocument(workspaceId, documentId),
