@@ -100,8 +100,8 @@ export const SummaryTab = ({ summary, isSummaryGenerated, isLoading, isGeneratin
               </div>
               {comparisonTables.map((tbl, idx) => (
                 <div key={idx} className="rounded-2xl bg-white border border-slate-200 shadow-xs overflow-hidden">
-                  <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
-                    <span className="text-xs font-bold text-slate-700 font-sans">{tbl.title}</span>
+                  <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex justify-center">
+                    <span className="text-xs font-bold text-slate-700 font-sans text-center">{tbl.title}</span>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs border-collapse">
