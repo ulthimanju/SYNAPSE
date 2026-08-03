@@ -40,26 +40,8 @@ export const workspaceQueries = {
     queryKey: workspaceQueryKeys.documents(userId, workspaceId),
     queryFn: ({ signal }) => workspaceApi.getDocuments(workspaceId, signal),
     enabled: !!workspaceId && isTabActive,
-    refetchInterval: (query) => {
-      // 1. Stop polling completely if tab is inactive or workspace unselected
-      if (!workspaceId || !isTabActive) return false;
-      // 2. Stop polling if browser tab is hidden/minimized
-      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return false;
-
-      // 3. Check if any document is actively processing
-      const docs = query.state.data || [];
-      const hasProcessing = docs.some(
-        (d) =>
-          d.status === 'PROCESSING' ||
-          d.status === 'PENDING' ||
-          d.status === 'processing' ||
-          d.status === 'uploaded' ||
-          d.status === 'upload'
-      );
-
-      // Adaptive polling: 4s interval while processing, stopped once all ready/failed
-      return hasProcessing ? 4000 : false;
-    },
+    // refetchInterval removed — useDocumentSSE hook handles real-time status updates
+    // via Redis pub/sub → SSE → React Query cache patch (no polling needed)
   }),
 
   summary: (userId, workspaceId, isTabActive = true) => ({

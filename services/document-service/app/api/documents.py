@@ -1,5 +1,8 @@
+import asyncio
+import json
 from typing import List, Optional
 from fastapi import APIRouter, Depends, File, Path, UploadFile, Request, status
+from fastapi.responses import StreamingResponse
 from shared.schemas import APIResponse
 from shared.auth import get_current_user, AuthenticatedUser
 from shared.exceptions import BadRequestException
@@ -7,6 +10,91 @@ from ..services.document_service import DocumentService
 from ..schemas.document import DocumentRead
 
 router = APIRouter(tags=["Documents"])
+
+def get_document_service() -> DocumentService:
+    return DocumentService()
+
+def _get_auth_token(request: Request) -> Optional[str]:
+    auth_header = request.headers.get("authorization")
+    if auth_header:
+        return auth_header
+    cookie_token = request.cookies.get("access_token")
+    if cookie_token:
+        return f"Bearer {cookie_token}"
+    return None
+
+# ── SSE: Real-time document status stream ─────────────────────────────────────
+# IMPORTANT: This route MUST be declared BEFORE the generic GET /workspaces/{workspace_id}/documents
+# route, otherwise FastAPI will match 'stream' as a document ID path parameter.
+@router.get("/workspaces/{workspace_id}/documents/stream")
+async def stream_workspace_document_status(
+    workspace_id: str = Path(..., description="Workspace ID"),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    """SSE endpoint — streams document status change events for a workspace in real-time.
+    On connect: sends a 'snapshot' event with all current documents.
+    On each status change: sends a 'status' event with the updated document fields.
+    Keepalive comment sent every 20 seconds to prevent proxy timeouts.
+    """
+    from shared.cache.redis_client import redis_cache_manager
+
+    async def event_generator():
+        # 1. Send initial snapshot of all documents in this workspace
+        try:
+            service = DocumentService()
+            docs = await service.list_workspace_documents(workspace_id)
+            snapshot_data = json.dumps(
+                [d.model_dump() if hasattr(d, "model_dump") else d.dict() for d in docs],
+                default=str,
+            )
+            yield f"event: snapshot\ndata: {snapshot_data}\n\n"
+        except Exception as exc:
+            yield f"event: error\ndata: {{\"error\": \"snapshot_failed\", \"detail\": \"{str(exc)}\"}}\n\n"
+
+        # 2. Subscribe to Redis pub/sub channel for this workspace
+        channel = f"doc_status:{workspace_id}"
+        try:
+            redis_client = await redis_cache_manager.get_client()
+            # Create a separate pubsub connection (decode_responses=True is set on pool)
+            pubsub = redis_client.pubsub()
+            await pubsub.subscribe(channel)
+
+            try:
+                while True:
+                    try:
+                        message = await asyncio.wait_for(
+                            pubsub.get_message(ignore_subscribe_messages=True),
+                            timeout=20.0,
+                        )
+                        if message and message.get("type") == "message":
+                            data = message["data"]
+                            if isinstance(data, bytes):
+                                data = data.decode("utf-8")
+                            yield f"event: status\ndata: {data}\n\n"
+                        else:
+                            # Keepalive comment — keeps connection alive through proxies
+                            yield ": keepalive\n\n"
+                    except asyncio.TimeoutError:
+                        yield ": keepalive\n\n"
+            finally:
+                await pubsub.unsubscribe(channel)
+                await pubsub.aclose()
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).error(f"SSE stream error for workspace {workspace_id}: {exc}")
+            yield f"event: error\ndata: {{\"error\": \"stream_failed\"}}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",   # Disable nginx buffering
+            "Connection": "keep-alive",
+        },
+    )
+
+
 
 def get_document_service() -> DocumentService:
     return DocumentService()

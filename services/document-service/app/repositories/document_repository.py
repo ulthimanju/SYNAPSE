@@ -1,6 +1,10 @@
 from typing import List, Optional
+import json
+import logging
 from beanie import PydanticObjectId
 from ..models.document import Document
+
+logger = logging.getLogger(__name__)
 
 class DocumentRepository:
     """Repository for managing Document metadata in MongoDB."""
@@ -43,8 +47,27 @@ class DocumentRepository:
         if processing_stage:
             doc.processing_stage = processing_stage
         await doc.save()
+
+        # Publish real-time SSE event via Redis pub/sub
+        try:
+            from shared.cache.redis_client import redis_cache_manager
+            redis_client = await redis_cache_manager.get_client()
+            channel = f"doc_status:{doc.workspace_id}"
+            payload = json.dumps({
+                "event": "document.status",
+                "document_id": str(doc.id),
+                "workspace_id": doc.workspace_id,
+                "status": status,
+                "processing_stage": processing_stage or getattr(doc, "processing_stage", None),
+                "filename": doc.filename,
+            })
+            await redis_client.publish(channel, payload)
+        except Exception as e:
+            logger.warning(f"SSE Redis pub/sub publish failed (non-critical): {e}")
+
         return doc
 
     async def delete(self, doc: Document) -> bool:
         await doc.delete()
         return True
+

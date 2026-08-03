@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { useWorkspaces } from '../hooks/useWorkspaces';
 import { useDocuments } from '../hooks/useDocuments';
+import { useDocumentSSE } from '../hooks/useDocumentSSE';
 import { useSummary } from '../hooks/useSummary';
 import { useLearningPath } from '../hooks/useLearningPath';
 import { useRagChat } from '../hooks/useRagChat';
@@ -20,6 +21,7 @@ import { WorkspaceListPage } from './WorkspaceListPage';
 export const WorkspaceDetailPage = () => {
   // 1. Read single source of truth from Workspace Context (URL-driven)
   const {
+    userId,
     workspaceId,
     activeTab,
     currentWorkspace,
@@ -61,6 +63,10 @@ export const WorkspaceDetailPage = () => {
     isDeleting,
   } = useDocuments(workspaceId, isDocTabActive);
   const isDocumentsBusy = isDocTabActive && (isDocumentsLoading || isDocumentsFetching);
+
+  // SSE: real-time document status stream — replaces polling refetchInterval
+  useDocumentSSE(userId, workspaceId, isDocTabActive);
+
   const { summary, isLoading: isSummaryLoading, generateSummary, isGenerating: isGeneratingSummary } = useSummary(
     workspaceId,
     isSummaryTabActive

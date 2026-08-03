@@ -1,7 +1,7 @@
 import logging
 import httpx
 from fastapi import FastAPI, Request, Response, status
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.responses import RedirectResponse, JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from shared.config.settings import settings
 
@@ -87,6 +87,38 @@ async def proxy_request(target_url: str, request: Request) -> Response:
             content={"detail": f"Service unavailable: {str(exc)}"},
         )
 
+async def proxy_sse_request(target_url: str, request: Request) -> StreamingResponse:
+    """Streams SSE responses from downstream service without buffering.
+    Uses httpx streaming context so each chunk is forwarded immediately.
+    """
+    headers = {k: v for k, v in request.headers.items() if k.lower() not in ("host", "content-length")}
+
+    async def stream_generator():
+        try:
+            client = get_shared_httpx_client()
+            async with client.stream(
+                method=request.method,
+                url=target_url,
+                headers=headers,
+                params=dict(request.query_params),
+                timeout=None,  # No timeout for persistent SSE connection
+            ) as resp:
+                async for chunk in resp.aiter_bytes():
+                    yield chunk
+        except Exception as exc:
+            logger.error(f"SSE proxy stream error to {target_url}: {exc}")
+            yield b'event: error\ndata: {"error": "stream_failed"}\n\n'
+
+    return StreamingResponse(
+        stream_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
 # ─────────────────────────────────────────────────────────
 # Identity Service Routes  →  identity-service:8001
 # ─────────────────────────────────────────────────────────
@@ -112,6 +144,11 @@ async def route_workspace_documents(request: Request, workspace_id: str, path: s
         target = f"{settings.document_service_url}/workspaces/{workspace_id}/documents/{path}"
     else:
         target = f"{settings.document_service_url}/workspaces/{workspace_id}/documents"
+
+    # SSE route: stream without buffering
+    if path == "stream":
+        return await proxy_sse_request(target, request)
+
     return await proxy_request(target, request)
 
 # ─────────────────────────────────────────────────────────
