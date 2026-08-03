@@ -125,6 +125,7 @@ export const WorkspaceDetailPage = () => {
         {activeTab === 'summary' && (
           <SummaryTab
             summary={summary}
+            isSummaryGenerated={Boolean(currentWorkspace?.is_summary_generated || summary?.overview || summary?.summary_text || summary?.content)}
             isLoading={isSummaryLoading}
             isGenerating={isGeneratingSummary}
             onGenerate={generateSummary}

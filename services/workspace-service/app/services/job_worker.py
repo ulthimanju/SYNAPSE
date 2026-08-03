@@ -197,6 +197,23 @@ class AIJobWorker:
                     await s.insert()
                 except Exception:
                     pass
+
+            # Update is_summary_generated = True ONLY after AI successfully returned and summary is saved
+            try:
+                from ..models.workspace import Workspace
+                ws = await Workspace.get(ws_id) if hasattr(Workspace, "get") else None
+                if not ws:
+                    ws = await Workspace.find_one({"_id": ws_id})
+                if ws:
+                    ws.is_summary_generated = True
+                    await ws.save()
+                    # Invalidate workspace detail Redis caches so frontend reflects is_summary_generated: True
+                    await redis_cache_manager.delete_pattern(CacheKeys.ws_detail_pattern(ws_id))
+                    if ws.owner_id:
+                        await redis_cache_manager.delete_cache(CacheKeys.user_workspaces(ws.owner_id))
+            except Exception as ws_exc:
+                logger.warning(f"Failed updating is_summary_generated for workspace {ws_id}: {ws_exc}")
+
             await self._update_step(job, "Store Summary", "completed", 100)
 
             # Auto-chain: Generate Workspace Summary -> Generate Learning Path -> Workspace Ready

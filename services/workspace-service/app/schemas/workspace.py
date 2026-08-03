@@ -14,6 +14,8 @@ class WorkspaceUpdate(BaseModel):
     description: Optional[str] = Field(default=None)
     is_shared: Optional[bool] = Field(default=None)
     is_archived: Optional[bool] = Field(default=None)
+    is_summary_generated: Optional[bool] = Field(default=None)
+
 
 class CollaboratorInvite(BaseModel):
     """Schema for inviting a collaborator to a workspace."""
@@ -41,6 +43,7 @@ class WorkspaceRead(BaseModel):
     owner_id: str
     is_shared: bool = False
     is_archived: bool = False
+    is_summary_generated: bool = False
     role: str = "owner"
     is_owner: bool = True
     can_edit: bool = True

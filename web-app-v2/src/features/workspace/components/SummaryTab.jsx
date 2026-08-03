@@ -2,7 +2,7 @@ import React from 'react';
 import { Sparkles, RefreshCw, AlertCircle, Clock, BookOpen, Code, Table as TableIcon, CheckCircle2 } from 'lucide-react';
 import { MarkdownRenderer } from '../../../components/common/MarkdownRenderer';
 
-export const SummaryTab = ({ summary, isLoading, isGenerating, onGenerate }) => {
+export const SummaryTab = ({ summary, isSummaryGenerated, isLoading, isGenerating, onGenerate }) => {
   const overview = summary?.overview || summary?.summary_text || summary?.content || summary?.data?.overview;
   const title = summary?.title || 'Executive Summary';
   const keyTopics = summary?.key_topics || [];
@@ -10,6 +10,13 @@ export const SummaryTab = ({ summary, isLoading, isGenerating, onGenerate }) => 
   const comparisonTables = summary?.comparison_tables || [];
   const difficulty = summary?.difficulty;
   const studyTime = summary?.estimated_study_time;
+
+  const hasValidSummary = Boolean(isSummaryGenerated || overview);
+  const buttonLabel = isGenerating
+    ? 'Synthesizing...'
+    : hasValidSummary
+    ? 'Regenerate Summary'
+    : 'Generate Summary';
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 animate-fadeIn">
@@ -31,7 +38,7 @@ export const SummaryTab = ({ summary, isLoading, isGenerating, onGenerate }) => 
           className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-[#1c3d98] hover:bg-blue-800 text-white font-semibold text-xs shadow-md transition active:scale-98 cursor-pointer disabled:opacity-50"
         >
           <RefreshCw className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} />
-          <span>{isGenerating ? 'Synthesizing...' : 'Regenerate Summary'}</span>
+          <span>{buttonLabel}</span>
         </button>
       </div>
 
@@ -130,7 +137,7 @@ export const SummaryTab = ({ summary, isLoading, isGenerating, onGenerate }) => 
           <AlertCircle className="w-12 h-12 text-slate-300 mx-auto" />
           <p className="text-slate-800 font-bold text-base font-sans">No Executive Summary Available</p>
           <p className="text-slate-400 text-xs max-w-md mx-auto leading-relaxed">
-            Click "Regenerate Summary" above to synthesize a comprehensive AI overview of your uploaded documents.
+            Click "{buttonLabel}" above to synthesize a comprehensive AI overview of your uploaded documents.
           </p>
         </div>
       )}

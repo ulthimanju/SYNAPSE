@@ -10,6 +10,7 @@ class Workspace(Document):
     owner_id: Indexed(str) = Field(..., description="User ID of the workspace owner")
     is_shared: bool = Field(default=False, description="Shared workspace boolean flag (True = shared, False = private)")
     is_archived: bool = Field(default=False, description="Archived status flag")
+    is_summary_generated: bool = Field(default=False, description="Flag indicating if a valid summary exists")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
