@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, RefreshCw, AlertCircle, Clock, BookOpen, Code, Table as TableIcon, CheckCircle2 } from 'lucide-react';
+import { Sparkles, RefreshCw, AlertCircle, Code, Table as TableIcon, CheckCircle2 } from 'lucide-react';
 import { MarkdownRenderer } from '../../../components/common/MarkdownRenderer';
 
 export const SummaryTab = ({ summary, isSummaryGenerated, isLoading, isGenerating, onGenerate }) => {
@@ -53,29 +53,6 @@ export const SummaryTab = ({ summary, isSummaryGenerated, isLoading, isGeneratin
         </div>
       ) : overview ? (
         <div className="space-y-6">
-          {/* Metadata Chips */}
-          {(difficulty || studyTime || keyTopics.length > 0) && (
-            <div className="flex flex-wrap items-center gap-3 p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
-              {difficulty && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-100 font-sans">
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span>{difficulty}</span>
-                </span>
-              )}
-              {studyTime && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100 font-sans">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>{studyTime}</span>
-                </span>
-              )}
-              {keyTopics.map((topic, i) => (
-                <span key={i} className="px-3 py-1 rounded-xl text-xs font-mono font-semibold bg-slate-100 text-slate-600 border border-slate-200/80">
-                  #{topic}
-                </span>
-              ))}
-            </div>
-          )}
-
           {/* Main Executive Summary Document Paper */}
           <div className="p-8 md:p-12 rounded-3xl bg-white border border-slate-200/80 shadow-sm leading-relaxed text-slate-800 font-sans">
             <MarkdownRenderer content={overview} />

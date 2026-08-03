@@ -19,7 +19,7 @@ export const MainLayout = () => {
   return (
     <div className="min-h-screen flex bg-[#f4f5fa] text-slate-800 font-sans antialiased">
       {/* Icon Rail Left Sidebar */}
-      <aside className="w-20 bg-[#1c3d98] flex flex-col items-center justify-between py-6 flex-shrink-0 shadow-xl z-20">
+      <aside className="fixed top-0 left-0 h-screen w-20 bg-[#1c3d98] flex flex-col items-center justify-between py-6 flex-shrink-0 shadow-xl z-30">
         {/* Top Logo Badge */}
         <div className="space-y-8 flex flex-col items-center">
           <Link
@@ -81,8 +81,8 @@ export const MainLayout = () => {
         </div>
       </aside>
 
-      {/* Main Viewport Container */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-[#f4f5fa]">
+      {/* Main Viewport Container — offset by fixed sidebar width (w-20 = 80px) */}
+      <main className="flex-1 flex flex-col min-w-0 bg-[#f4f5fa] ml-20">
         <Outlet />
       </main>
     </div>

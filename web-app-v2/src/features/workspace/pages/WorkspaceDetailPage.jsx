@@ -91,25 +91,27 @@ export const WorkspaceDetailPage = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#f4f5fa] text-slate-800 font-sans">
-      {/* Workspace Header */}
-      <WorkspaceHeader
-        workspace={currentWorkspace}
-        documents={documents}
-        collaborators={collaborators}
-        isLoading={isDocumentsBusy}
-        onSwitchWorkspace={() => setIsSwitchModalOpen(true)}
-      />
+    <div className="flex flex-col h-screen bg-[#f4f5fa] text-slate-800 font-sans overflow-hidden">
+      {/* Workspace Header — sticky topbar */}
+      <div className="sticky top-0 z-20 bg-white">
+        <WorkspaceHeader
+          workspace={currentWorkspace}
+          documents={documents}
+          collaborators={collaborators}
+          isLoading={isDocumentsBusy}
+          onSwitchWorkspace={() => setIsSwitchModalOpen(true)}
+        />
 
-      {/* Navigation Tabs (Deep Linking via URL query ?tab=...) */}
-      <WorkspaceTabs
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        documentCount={documents.length}
-      />
+        {/* Navigation Tabs */}
+        <WorkspaceTabs
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          documentCount={documents.length}
+        />
+      </div>
 
-      {/* Main Tab Content Viewport */}
-      <main className="flex-1 p-8 overflow-y-auto">
+      {/* Main Tab Content Viewport — scrollable below fixed topbar */}
+      <main className="flex-1 overflow-y-auto p-8">
         {activeTab === 'documents' && (
           <DocumentsTab
             documents={documents}
