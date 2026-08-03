@@ -1,215 +1,260 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, GitBranch } from 'lucide-react';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneLight, oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
-/**
- * Universal KaTeX Math Text Formatter
- * Pre-processes LaTeX math expressions ($...$ and $$...$$) directly into KaTeX HTML.
- */
-/**
- * Recursively inspects React children nodes so inline math delimiters inside <strong>, <em>, or nested elements are rendered via KaTeX.
- */
+// ─── Mermaid Diagram ──────────────────────────────────────────────────────────
+const MermaidDiagram = ({ code }) => {
+  const ref = useRef(null);
+  const [error, setError] = useState(false);
+  const [svg, setSvg] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setSvg('');
+    setError(false);
+
+    import('mermaid').then(({ default: mermaid }) => {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'base',
+        themeVariables: {
+          primaryColor: '#cff4fc',
+          primaryBorderColor: '#0891b2',
+          primaryTextColor: '#1c3d98',
+          lineColor: '#94a3b8',
+          secondaryColor: '#eff6ff',
+          tertiaryColor: '#f8fafc',
+          background: '#ffffff',
+          mainBkg: '#f8fafc',
+          nodeBorder: '#cbd5e1',
+          clusterBkg: '#f1f5f9',
+          titleColor: '#0f172a',
+          edgeLabelBackground: '#f8fafc',
+          fontFamily: 'Inter, ui-sans-serif, system-ui',
+          fontSize: '13px',
+        },
+      });
+
+      const id = `mermaid-${Math.random().toString(36).slice(2)}`;
+      mermaid.render(id, code)
+        .then(({ svg: renderedSvg }) => {
+          if (!cancelled) setSvg(renderedSvg);
+        })
+        .catch(() => {
+          if (!cancelled) setError(true);
+        });
+    }).catch(() => {
+      if (!cancelled) setError(true);
+    });
+
+    return () => { cancelled = true; };
+  }, [code]);
+
+  if (error) return null;
+  if (!svg) return (
+    <div className="flex items-center gap-2 py-4 text-slate-400 text-xs font-mono">
+      <GitBranch className="w-3.5 h-3.5 animate-pulse" />
+      Rendering diagram...
+    </div>
+  );
+
+  return (
+    <div
+      className="my-3 p-4 rounded-xl bg-white border border-slate-200 overflow-x-auto"
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  );
+};
+
+// ─── Math Text Helpers ────────────────────────────────────────────────────────
 function processMathInNode(node) {
-  if (typeof node === 'string') {
-    return renderMathText(node);
-  }
-
+  if (typeof node === 'string') return renderMathText(node);
   if (React.isValidElement(node)) {
     const children = node.props?.children;
     if (!children) return node;
-
-    const processedChildren = React.Children.map(children, (child) => processMathInNode(child));
-    return React.cloneElement(node, {}, processedChildren);
+    const processed = React.Children.map(children, processMathInNode);
+    return React.cloneElement(node, {}, processed);
   }
-
   return node;
 }
 
-/**
- * Custom renderer for text segments that converts math expressions ($...$, $$...$$, \(...\), \[...\]) into KaTeX HTML elements.
- */
 function renderMathText(text) {
   if (typeof text !== 'string' || !text) return text;
-
-  // Split text by display math ($$...$$ or \[...\]) and inline math ($...$ or \(...\))
   const mathRegex = /(\$\$[\s\S]+?\$\$|\\\[[\s\S]+?\\\]|(?<!\$)\$[^\$\n]+?\$(?!\$)|\\\([\s\S]+?\\\))/g;
   const parts = text.split(mathRegex);
-
   return parts.map((part, idx) => {
     if (!part) return null;
-
     const isDisplay = part.startsWith('$$') || part.startsWith('\\[');
     const isInline = !isDisplay && (part.startsWith('$') || part.startsWith('\\('));
-
     if (isDisplay) {
-      const cleanMath = part.replace(/^(\$\$|\\\[)/, '').replace(/(\$\$|\\\])$/, '').trim();
+      const clean = part.replace(/^(\$\$|\\\[)/, '').replace(/(\$\$|\\\])$/, '').trim();
       try {
-        const html = katex.renderToString(cleanMath, { displayMode: true, throwOnError: false });
-        return (
-          <div
-            key={idx}
-            className="katex-display-block my-6 overflow-x-auto py-3 text-center"
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
-        );
-      } catch {
-        return <code key={idx}>{part}</code>;
-      }
+        const html = katex.renderToString(clean, { displayMode: true, throwOnError: false });
+        return <div key={idx} className="my-4 overflow-x-auto text-center" dangerouslySetInnerHTML={{ __html: html }} />;
+      } catch { return <code key={idx}>{part}</code>; }
     }
-
     if (isInline) {
-      const cleanMath = part.replace(/^(\$|\\\()/, '').replace(/(\$|\\\))$/, '').trim();
+      const clean = part.replace(/^(\$|\\\()/, '').replace(/(\$|\\\))$/, '').trim();
       try {
-        const html = katex.renderToString(cleanMath, { displayMode: false, throwOnError: false });
-        return (
-          <span
-            key={idx}
-            className="katex-inline px-0.5"
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
-        );
-      } catch {
-        return <code key={idx}>{part}</code>;
-      }
+        const html = katex.renderToString(clean, { displayMode: false, throwOnError: false });
+        return <span key={idx} className="katex-inline" dangerouslySetInnerHTML={{ __html: html }} />;
+      } catch { return <code key={idx}>{part}</code>; }
     }
-
     return part;
   });
 }
 
+// ─── Main Component ───────────────────────────────────────────────────────────
 export const MarkdownRenderer = ({ content, dark = false }) => {
-  const [copiedIndex, setCopiedIndex] = useState(null);
+  const [copiedKey, setCopiedKey] = useState(null);
 
   if (!content) return null;
 
-  const proseClass = dark
-    ? 'prose prose-invert max-w-none font-sans text-slate-300 space-y-4'
-    : 'prose max-w-none font-sans text-slate-700 space-y-4';
+  const copy = (text) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(text);
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
+
+  // Compact, themed typography
+  const p       = 'leading-relaxed text-slate-700 text-sm my-1.5';
+  const h1c     = 'text-xl font-extrabold text-[#1c3d98] tracking-tight mt-5 mb-1.5 pb-1.5 border-b border-slate-200';
+  const h2c     = 'text-lg font-bold text-[#1c3d98] tracking-tight mt-4 mb-1';
+  const h3c     = 'text-base font-bold text-slate-800 mt-3 mb-1';
+  const h4c     = 'text-sm font-bold text-slate-700 mt-2 mb-0.5';
+  const ulc     = 'list-disc list-outside ml-5 space-y-0.5 my-1.5 text-slate-700 text-sm';
+  const olc     = 'list-decimal list-outside ml-5 space-y-0.5 my-1.5 text-slate-700 text-sm';
+  const lic     = 'leading-relaxed';
+  const bqc     = 'border-l-4 border-[#1c3d98] pl-3 py-1 bg-blue-50/60 rounded-r-lg text-slate-600 italic my-2 text-sm';
+  const tablec  = 'w-full text-xs border-collapse my-2';
+  const thc     = 'px-3 py-2 bg-[#1c3d98] text-white font-semibold text-left font-mono border border-blue-800';
+  const tdc     = 'px-3 py-2 text-slate-700 border border-slate-200 align-top';
+  const trc     = 'even:bg-slate-50/70';
+  const inlinec = 'font-mono text-xs px-1.5 py-0.5 rounded bg-blue-50 text-[#1c3d98] border border-blue-100';
 
   return (
-    <div className={proseClass}>
+    <div className="max-w-none font-sans">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
           p({ children }) {
-            return (
-              <p className="leading-relaxed text-slate-700 font-sans my-3">
-                {React.Children.map(children, (child) => processMathInNode(child))}
-              </p>
-            );
+            return <p className={p}>{React.Children.map(children, processMathInNode)}</p>;
           },
           h1({ children }) {
-            return (
-              <h1 className="text-2xl font-extrabold text-slate-900 font-sans tracking-tight mt-8 mb-4 border-b border-slate-200/80 pb-2">
-                {React.Children.map(children, (child) => processMathInNode(child))}
-              </h1>
-            );
+            return <h1 className={h1c}>{React.Children.map(children, processMathInNode)}</h1>;
           },
           h2({ children }) {
-            return (
-              <h2 className="text-xl font-bold text-slate-900 font-sans tracking-tight mt-6 mb-3">
-                {React.Children.map(children, (child) => processMathInNode(child))}
-              </h2>
-            );
+            return <h2 className={h2c}>{React.Children.map(children, processMathInNode)}</h2>;
           },
           h3({ children }) {
-            return (
-              <h3 className="text-lg font-bold text-slate-900 font-sans tracking-tight mt-5 mb-2">
-                {React.Children.map(children, (child) => processMathInNode(child))}
-              </h3>
-            );
+            return <h3 className={h3c}>{React.Children.map(children, processMathInNode)}</h3>;
           },
           h4({ children }) {
-            return (
-              <h4 className="text-base font-bold text-slate-900 font-sans mt-4 mb-2">
-                {React.Children.map(children, (child) => processMathInNode(child))}
-              </h4>
-            );
+            return <h4 className={h4c}>{React.Children.map(children, processMathInNode)}</h4>;
           },
-          ul({ children }) {
-            return <ul className="list-disc list-outside ml-6 space-y-2 my-3 text-slate-700">{children}</ul>;
-          },
-          ol({ children }) {
-            return <ol className="list-decimal list-outside ml-6 space-y-2 my-3 text-slate-700">{children}</ol>;
-          },
+          ul({ children }) { return <ul className={ulc}>{children}</ul>; },
+          ol({ children }) { return <ol className={olc}>{children}</ol>; },
           li({ children }) {
-            return (
-              <li className="leading-relaxed font-sans">
-                {React.Children.map(children, (child) => processMathInNode(child))}
-              </li>
-            );
+            return <li className={lic}>{React.Children.map(children, processMathInNode)}</li>;
           },
           strong({ children }) {
-            return (
-              <strong className="font-bold text-slate-900">
-                {React.Children.map(children, (child) => processMathInNode(child))}
-              </strong>
-            );
+            return <strong className="font-bold text-slate-900">{React.Children.map(children, processMathInNode)}</strong>;
+          },
+          em({ children }) {
+            return <em className="italic text-slate-600">{React.Children.map(children, processMathInNode)}</em>;
           },
           blockquote({ children }) {
+            return <blockquote className={bqc}>{children}</blockquote>;
+          },
+          table({ children }) {
             return (
-              <blockquote className="border-l-4 border-blue-600 pl-4 py-1.5 italic bg-blue-50/50 rounded-r-xl text-slate-700 my-4">
-                {children}
-              </blockquote>
+              <div className="overflow-x-auto my-3 rounded-xl border border-slate-200 shadow-xs">
+                <table className={tablec}>{children}</table>
+              </div>
             );
           },
+          thead({ children }) { return <thead>{children}</thead>; },
+          tbody({ children }) { return <tbody>{children}</tbody>; },
+          tr({ children }) { return <tr className={trc}>{children}</tr>; },
+          th({ children }) { return <th className={thc}>{children}</th>; },
+          td({ children }) { return <td className={tdc}>{children}</td>; },
+          a({ href, children }) {
+            return (
+              <a href={href} target="_blank" rel="noopener noreferrer"
+                className="text-[#1c3d98] underline underline-offset-2 hover:text-blue-700 transition text-sm font-medium">
+                {children}
+              </a>
+            );
+          },
+          hr() {
+            return <hr className="my-4 border-slate-200" />;
+          },
 
-          // Code block with One-Click Copy button
+          // ── Code blocks with syntax highlighting + Mermaid support ──
           code({ node, inline, className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || '');
+            const lang = match?.[1] || '';
             const codeString = String(children).replace(/\n$/, '');
 
             if (!inline) {
-              const containerStyle = dark
-                ? 'bg-slate-950 border-slate-800'
-                : 'bg-slate-50 border-slate-200/90 shadow-xs';
+              // Render mermaid diagrams — hide silently on error
+              if (lang === 'mermaid') {
+                return <MermaidDiagram code={codeString} />;
+              }
 
-              const headerStyle = dark
-                ? 'bg-slate-900 border-slate-800 text-slate-400'
-                : 'bg-slate-100 border-slate-200 text-slate-600';
-
-              const textStyle = dark ? 'text-slate-200' : 'text-slate-800';
+              const hlStyle = dark ? oneDark : oneLight;
+              const headerBg = dark ? '#1e293b' : '#f1f5f9';
+              const headerBorder = dark ? '#334155' : '#e2e8f0';
+              const headerText = dark ? '#94a3b8' : '#1c3d98';
 
               return (
-                <div className={`relative group my-4 rounded-xl overflow-hidden border ${containerStyle}`}>
-                  <div className={`flex items-center justify-between px-4 py-2 border-b text-xs font-mono font-semibold ${headerStyle}`}>
-                    <span>{match ? match[1].toUpperCase() : 'CODE'}</span>
+                <div className={`relative group my-3 rounded-xl overflow-hidden border ${dark ? 'border-slate-700' : 'border-slate-200'} shadow-xs`}>
+                  {/* Header bar */}
+                  <div
+                    className="flex items-center justify-between px-3 py-1.5 text-xs font-mono font-bold"
+                    style={{ background: headerBg, borderBottom: `1px solid ${headerBorder}`, color: headerText }}
+                  >
+                    <span>{lang ? lang.toUpperCase() : 'CODE'}</span>
                     <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(codeString);
-                        setCopiedIndex(codeString);
-                        setTimeout(() => setCopiedIndex(null), 2000);
-                      }}
-                      className="flex items-center gap-1 hover:opacity-80 transition cursor-pointer"
+                      onClick={() => copy(codeString)}
+                      className="flex items-center gap-1 hover:opacity-70 transition cursor-pointer"
                     >
-                      {copiedIndex === codeString ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-emerald-600 font-bold" />
-                          <span className="text-emerald-600 font-bold">Copied</span>
-                        </>
+                      {copiedKey === codeString ? (
+                        <><Check className="w-3 h-3 text-emerald-600" /><span className="text-emerald-600">Copied</span></>
                       ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>Copy</span>
-                        </>
+                        <><Copy className="w-3 h-3" /><span>Copy</span></>
                       )}
                     </button>
                   </div>
-                  <pre className={`p-4 font-mono text-sm overflow-x-auto ${textStyle}`}>
-                    <code>{codeString}</code>
-                  </pre>
+
+                  {/* Syntax-highlighted code */}
+                  <SyntaxHighlighter
+                    style={hlStyle}
+                    language={lang || 'text'}
+                    PreTag="div"
+                    customStyle={{
+                      margin: 0,
+                      padding: '0.75rem 1rem',
+                      fontSize: '0.78rem',
+                      lineHeight: '1.6',
+                      background: dark ? '#0f172a' : '#fafbfc',
+                      borderRadius: 0,
+                    }}
+                    codeTagProps={{ style: { fontFamily: "'JetBrains Mono', 'Fira Code', monospace" } }}
+                  >
+                    {codeString}
+                  </SyntaxHighlighter>
                 </div>
               );
             }
 
-            return (
-              <code className={className} {...props}>
-                {children}
-              </code>
-            );
+            // Inline code
+            return <code className={inlinec} {...props}>{children}</code>;
           },
         }}
       >
@@ -218,5 +263,3 @@ export const MarkdownRenderer = ({ content, dark = false }) => {
     </div>
   );
 };
-
-
