@@ -9,31 +9,56 @@ import { Copy, Check } from 'lucide-react';
  * Universal KaTeX Math Text Formatter
  * Pre-processes LaTeX math expressions ($...$ and $$...$$) directly into KaTeX HTML.
  */
-function formatMathInText(rawText) {
-  if (typeof rawText !== 'string' || !rawText) return rawText || '';
+/**
+ * Custom renderer for text segments that converts math expressions ($...$, $$...$$, \(...\), \[...\]) into KaTeX HTML elements.
+ */
+function renderMathText(text) {
+  if (typeof text !== 'string' || !text) return text;
 
-  // 1. Process block math $$ ... $$ or \[ ... \]
-  let text = rawText.replace(/(\$\$|\\\[)([\s\S]+?)(\$\$|\\\])/g, (_, _open, math) => {
-    try {
-      return `<div class="katex-display-block my-4 overflow-x-auto py-2 text-center">${katex.renderToString(
-        math.trim(),
-        { displayMode: true, throwOnError: false }
-      )}</div>`;
-    } catch {
-      return math;
+  // Split text by display math ($$...$$ or \[...\]) and inline math ($...$ or \(...\))
+  const mathRegex = /(\$\$[\s\S]+?\$\$|\\\[[\s\S]+?\\\]|(?<!\$)\$[^\$\n]+?\$(?!\$)|\\\([\s\S]+?\\\))/g;
+  const parts = text.split(mathRegex);
+
+  return parts.map((part, idx) => {
+    if (!part) return null;
+
+    const isDisplay = part.startsWith('$$') || part.startsWith('\\[');
+    const isInline = !isDisplay && (part.startsWith('$') || part.startsWith('\\('));
+
+    if (isDisplay) {
+      const cleanMath = part.replace(/^(\$\$|\\\[)/, '').replace(/(\$\$|\\\])$/, '').trim();
+      try {
+        const html = katex.renderToString(cleanMath, { displayMode: true, throwOnError: false });
+        return (
+          <div
+            key={idx}
+            className="katex-display-block my-4 overflow-x-auto py-2 text-center"
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        );
+      } catch {
+        return <code key={idx}>{part}</code>;
+      }
     }
-  });
 
-  // 2. Process inline math $ ... $ or \( ... \)
-  text = text.replace(/(\\\(|(?<!\$)\$)([^\$\n]+?)(\\\)|(?<!\$)\$)/g, (_, _open, math) => {
-    try {
-      return katex.renderToString(math.trim(), { displayMode: false, throwOnError: false });
-    } catch {
-      return math;
+    if (isInline) {
+      const cleanMath = part.replace(/^(\$|\\\()/, '').replace(/(\$|\\\))$/, '').trim();
+      try {
+        const html = katex.renderToString(cleanMath, { displayMode: false, throwOnError: false });
+        return (
+          <span
+            key={idx}
+            className="katex-inline"
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        );
+      } catch {
+        return <code key={idx}>{part}</code>;
+      }
     }
-  });
 
-  return text;
+    return part;
+  });
 }
 
 export const MarkdownRenderer = ({ content, dark = false }) => {
@@ -41,34 +66,36 @@ export const MarkdownRenderer = ({ content, dark = false }) => {
 
   if (!content) return null;
 
-  const processedContent = formatMathInText(content);
-
   const proseClass = dark
     ? 'prose prose-invert max-w-none prose-headings:font-sans prose-headings:font-bold prose-headings:text-white prose-p:text-slate-300 prose-p:leading-relaxed prose-li:text-slate-300 prose-code:text-blueprint-300 prose-code:bg-slate-900 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:font-mono'
     : 'prose max-w-none prose-headings:font-sans prose-headings:font-bold prose-headings:text-slate-900 prose-p:text-slate-700 prose-p:leading-relaxed prose-li:text-slate-700 prose-strong:text-slate-900 prose-code:text-blue-700 prose-code:bg-slate-100 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:font-mono';
-
-  // If text contains KaTeX HTML tags (<span class="katex"> or <div class="katex-display-block">),
-  // format basic markdown (bold, newlines) and render directly via dangerouslySetInnerHTML
-  const hasRawHtml = /<span class="katex"|<div class="katex/.test(processedContent);
-
-  if (hasRawHtml) {
-    const formattedHtml = processedContent
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\n\n/g, '<br/><br/>');
-
-    return (
-      <div
-        className={proseClass}
-        dangerouslySetInnerHTML={{ __html: formattedHtml }}
-      />
-    );
-  }
 
   return (
     <div className={proseClass}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
+          // Render plain text nodes and headings with math support
+          p({ children }) {
+            return <p>{React.Children.map(children, (child) => (typeof child === 'string' ? renderMathText(child) : child))}</p>;
+          },
+          li({ children }) {
+            return <li>{React.Children.map(children, (child) => (typeof child === 'string' ? renderMathText(child) : child))}</li>;
+          },
+          h1({ children }) {
+            return <h1>{React.Children.map(children, (child) => (typeof child === 'string' ? renderMathText(child) : child))}</h1>;
+          },
+          h2({ children }) {
+            return <h2>{React.Children.map(children, (child) => (typeof child === 'string' ? renderMathText(child) : child))}</h2>;
+          },
+          h3({ children }) {
+            return <h3>{React.Children.map(children, (child) => (typeof child === 'string' ? renderMathText(child) : child))}</h3>;
+          },
+          h4({ children }) {
+            return <h4>{React.Children.map(children, (child) => (typeof child === 'string' ? renderMathText(child) : child))}</h4>;
+          },
+
+          // Code block with One-Click Copy button
           code({ node, inline, className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || '');
             const codeString = String(children).replace(/\n$/, '');
@@ -114,7 +141,7 @@ export const MarkdownRenderer = ({ content, dark = false }) => {
           },
         }}
       >
-        {processedContent}
+        {content}
       </ReactMarkdown>
     </div>
   );
