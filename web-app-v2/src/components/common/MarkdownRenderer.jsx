@@ -260,7 +260,7 @@ export const MarkdownRenderer = ({ content, dark = false, codeTitle = null }) =>
                       padding: '0.75rem 1rem',
                       fontSize: '0.78rem',
                       lineHeight: '1.6',
-                      background: 'transparent',
+                      background: dark ? '#0f172a' : '#ffffff',
                       borderRadius: 0,
                     }}
                     codeTagProps={{ style: { fontFamily: "'JetBrains Mono', 'Fira Code', monospace" } }}
