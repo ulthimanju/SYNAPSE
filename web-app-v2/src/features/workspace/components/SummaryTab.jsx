@@ -90,9 +90,9 @@ export const SummaryTab = ({ summary, isSummaryGenerated, isLoading, isGeneratin
               </div>
               <div className="grid grid-cols-1 gap-4">
                 {codeExamples.map((ex, idx) => (
-                  <div key={idx} className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 shadow-md">
-                    <h5 className="font-bold text-xs text-cyan-400 font-mono">{ex.title}</h5>
-                    <MarkdownRenderer content={`\`\`\`${ex.language || 'c'}\n${ex.code}\n\`\`\``} />
+                  <div key={idx} className="p-6 rounded-2xl bg-white border border-slate-200/80 space-y-3 shadow-sm">
+                    <h5 className="font-bold text-sm text-blue-900 font-mono">{ex.title}</h5>
+                    <MarkdownRenderer content={`\`\`\`${ex.language || 'c'}\n${ex.code}\n\`\`\``} dark={false} />
                   </div>
                 ))}
               </div>

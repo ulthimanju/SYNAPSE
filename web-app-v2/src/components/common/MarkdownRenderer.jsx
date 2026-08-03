@@ -163,9 +163,19 @@ export const MarkdownRenderer = ({ content, dark = false }) => {
             const codeString = String(children).replace(/\n$/, '');
 
             if (!inline) {
+              const containerStyle = dark
+                ? 'bg-slate-950 border-slate-800'
+                : 'bg-slate-50 border-slate-200/90 shadow-xs';
+
+              const headerStyle = dark
+                ? 'bg-slate-900 border-slate-800 text-slate-400'
+                : 'bg-slate-100 border-slate-200 text-slate-600';
+
+              const textStyle = dark ? 'text-slate-200' : 'text-slate-800';
+
               return (
-                <div className="relative group my-4 rounded-xl overflow-hidden bg-slate-950 border border-slate-800">
-                  <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800 text-xs font-mono text-slate-400">
+                <div className={`relative group my-4 rounded-xl overflow-hidden border ${containerStyle}`}>
+                  <div className={`flex items-center justify-between px-4 py-2 border-b text-xs font-mono font-semibold ${headerStyle}`}>
                     <span>{match ? match[1].toUpperCase() : 'CODE'}</span>
                     <button
                       onClick={() => {
@@ -173,12 +183,12 @@ export const MarkdownRenderer = ({ content, dark = false }) => {
                         setCopiedIndex(codeString);
                         setTimeout(() => setCopiedIndex(null), 2000);
                       }}
-                      className="flex items-center gap-1 hover:text-white transition cursor-pointer"
+                      className="flex items-center gap-1 hover:opacity-80 transition cursor-pointer"
                     >
                       {copiedIndex === codeString ? (
                         <>
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
-                          <span className="text-emerald-400">Copied</span>
+                          <Check className="w-3.5 h-3.5 text-emerald-600 font-bold" />
+                          <span className="text-emerald-600 font-bold">Copied</span>
                         </>
                       ) : (
                         <>
@@ -188,7 +198,7 @@ export const MarkdownRenderer = ({ content, dark = false }) => {
                       )}
                     </button>
                   </div>
-                  <pre className="p-4 font-mono text-sm text-slate-200 overflow-x-auto">
+                  <pre className={`p-4 font-mono text-sm overflow-x-auto ${textStyle}`}>
                     <code>{codeString}</code>
                   </pre>
                 </div>
